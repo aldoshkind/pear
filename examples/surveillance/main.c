@@ -8,7 +8,7 @@
 #include "peer_connection.h"
 #include "signaling.h"
 
-const char PIPE_LINE[] = "v4l2src ! video/x-raw,width=1920,height=1072,framerate=30/1 ! omxh264enc ! rtph264pay name=rtp config-interval=-1 ! appsink name=peer-connection-sink";
+const char PIPE_LINE[] = "videotestsrc pattern=ball ! video/x-raw,width=1920,height=1072,framerate=30/1 ! x264enc ! rtph264pay name=rtp config-interval=-1 ! appsink name=peer-connection-sink";
 
 typedef struct Surveillance {
 
@@ -28,7 +28,7 @@ Surveillance g_surveillance = {0};
 
 
 static void on_iceconnectionstatechange(IceConnectionState state, void *data) {
-
+    printf("%s %d\n", __PRETTY_FUNCTION__, state);
   if(state == FAILED) {
     printf("Disconnect with browser... Stop streaming");
     gst_element_set_state(g_surveillance.pipeline, GST_STATE_PAUSED);
@@ -36,13 +36,14 @@ static void on_iceconnectionstatechange(IceConnectionState state, void *data) {
 }
 
 static void on_icecandidate(char *sdp, void *data) {
-
+    printf("%s\n", __PRETTY_FUNCTION__);
   signaling_send_answer_to_call(g_surveillance.signaling, sdp);
   g_cond_signal(&g_surveillance.cond);
 }
 
 static void on_transport_ready(void *data) {
 
+    printf("%s\n", __PRETTY_FUNCTION__);
   static int pt = -1;
   // Update payload type of rtph264pay
   int gst_pt = gst_pt = peer_connection_get_rtpmap(g_surveillance.pc, CODEC_H264);

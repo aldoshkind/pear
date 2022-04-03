@@ -22,7 +22,7 @@ const char index_html[] = " \
         xhttp.onreadystatechange = function() { \n \
           if (this.readyState == 4 && this.status == 200) { \n \
             let res = JSON.parse(atob(this.responseText)); \n \
-            console.log(res); \n \
+            console.log(res); log(atob(this.responseText));\n \
             if(res.type == 'answer') { \n \
               pc.setRemoteDescription(new RTCSessionDescription(res)); \n \
             } \n \

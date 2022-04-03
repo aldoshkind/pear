@@ -99,7 +99,7 @@ void* send_h264_thread(void *data) {
 
 
 static void on_iceconnectionstatechange(IceConnectionState state, void *data) {
-
+printf("%s %d\n", __PRETTY_FUNCTION__, state);
   if(state == FAILED) {
     printf("Disconnect with browser... Stop streaming");
   }

@@ -13,8 +13,14 @@
 static const gchar *STATE_NAME[] = {"disconnected", "gathering", "connecting",
  "connected", "ready", "failed"};
 static const gchar *CANDIDATE_TYPE_NAME[] = {"host", "srflx", "prflx", "relay"};
-static const gchar *STUN_ADDR = "18.191.223.12";
-static const guint STUN_PORT = 3478;
+//static const gchar *STUN_ADDR = "18.191.223.12";
+//static const guint STUN_PORT = 3478;
+
+//static const gchar *STUN_ADDR = "stun.l.google.com";
+//static const guint STUN_PORT = 19302;
+
+static const gchar *STUN_ADDR = "";
+static const guint STUN_PORT = 10001;
 
 struct PeerConnection {
 
@@ -80,6 +86,7 @@ static void* peer_connection_component_state_chanaged_cb(NiceAgent *agent,
 
 static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint stream_id,
  gpointer data) {
+    printf("%s\n", __PRETTY_FUNCTION__);
 
   PeerConnection *pc = (PeerConnection*)data;
 

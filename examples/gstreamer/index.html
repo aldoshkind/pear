@@ -4,30 +4,39 @@
     <title>Video On Demand</title>
   </head>
   <body>
-    <textarea style="width:100%; height: 200px;" id="text">
-    </textarea>
+    <textarea style="width:100%; height: 400px;" id="text"></textarea>
     <video style='display:block; margin: 0 auto;border-style: solid;' id='remoteVideos'></video>
     <script>
-      var log = msg => { console.log(msg); tx = document.getElementById('text'); tx.value += JSON.stringify(msg) + '\n';};
+      var iceServers = [{urls: 'stun:stun.l.google.com:19302'}]
+    
+      var log = msg => { const currentDate = new Date(); logstr = currentDate.toISOString() + " " + msg; console.log(logstr); tx = document.getElementById('text'); tx.value += logstr + '\n';};
       var pc = new RTCPeerConnection({
-        iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+        iceServers
       });
       log('start')
       log(pc)
       function sendOfferToCall(sdp) {
+        log('sendOfferToCall')
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function() {
+          log('onreadystatechange ' + this.readyState)
           if (this.readyState == 4 && this.status == 200) {
             let res = JSON.parse(atob(this.responseText));
-            console.log(res);
+			log(atob(this.responseText))
+            log('res is ' + res)
+			log('sdp is ' + res.sdp)
             if(res.type == 'answer') {
+              log('setRemoteDescription')
               pc.setRemoteDescription(new RTCSessionDescription(res));
             }
           }
         };
+        log('open')
         xhttp.open('POST', '/call/demo');
         xhttp.setRequestHeader('Content-Type', 'plain/text');
+        log('send')
         xhttp.send(btoa(JSON.stringify({'type': 'offer', 'sdp': sdp})));
+        log('send done')
       }
       pc.ontrack = function (event) {
         log('ontrack'); log(event);
@@ -39,10 +48,18 @@
       };
       pc.oniceconnectionstatechange = e => log(pc.iceConnectionState);
       pc.onicecandidate = event => {
-        if(event.candidate === null) sendOfferToCall(pc.localDescription.sdp)
+        log('event ' + event)
+        if(event.candidate === null)
+        {
+	        sendOfferToCall(pc.localDescription.sdp)
+	    }
+	    else
+	    {
+	    	log('event candidate ' + event.candidate)
+	    }
       };
       pc.addTransceiver('video', {'direction': 'sendrecv'})
-      pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log);
+      pc.createOffer().then(d => {log('set descr'); pc.setLocalDescription(d); log('set descr done');}).catch(log);
     </script>
   </body>
 </html>

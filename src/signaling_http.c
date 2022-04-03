@@ -98,6 +98,8 @@ void signaling_http_handle_request(struct http_request_s* request) {
   http_response_status(response, 200);
 
   http_string_t url = http_request_target(request);
+  //printf("%s %s\n", __PRETTY_FUNCTION__, url.buf);
+  printf("%s\n", __PRETTY_FUNCTION__);
   if(url.len == strlen(signaling_http->call)
    && memcmp(url.buf, signaling_http->call, url.len) == 0) {
     // call
@@ -117,7 +119,9 @@ void signaling_http_handle_request(struct http_request_s* request) {
       http_response_body(response, "", 0);
   }
 
+  printf("%s respond\n", __PRETTY_FUNCTION__);
   http_respond(request, response);
+  printf("%s respond done\n", __PRETTY_FUNCTION__);
 }
 
 SignalingHttp* signaling_http_create(const char *host, int port, const char *call,

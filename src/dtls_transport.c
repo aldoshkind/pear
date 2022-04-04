@@ -185,6 +185,7 @@ DtlsTransport* dtls_transport_create(BIO *agent_write_bio) {
 
   DtlsTransport *dtls_transport = NULL;
   dtls_transport = (DtlsTransport*)malloc(sizeof(DtlsTransport));
+  memset(dtls_transport, 0, sizeof(*dtls_transport));
   if(dtls_transport == NULL)
     return dtls_transport;
 
@@ -331,15 +332,21 @@ void dtls_transport_incomming_msg(DtlsTransport *dtls_transport, char *buf, int 
 
 }
 
-void dtls_transport_decrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes) {
-
-  srtp_unprotect(dtls_transport->srtp_in, packet, bytes);
+void dtls_transport_decrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes)
+{
+    if(dtls_transport->srtp_in && packet && bytes)
+    {
+        srtp_unprotect(dtls_transport->srtp_in, packet, bytes);
+    }
 }
 
 
-void dtls_transport_encrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes) {
-
-  srtp_protect(dtls_transport->srtp_out, packet, bytes);
+void dtls_transport_encrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes)
+{
+    if(dtls_transport->srtp_out)
+    {
+        srtp_protect(dtls_transport->srtp_out, packet, bytes);
+    }
 }
 
 void dtls_transport_encrypt_rctp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes) {

@@ -41,15 +41,15 @@ struct PeerConnection {
   MediaStream *media_stream;
   RtpMap rtp_map;
 
-  void (*onicecandidate)(char *sdp, void *userdata);
-  void (*oniceconnectionstatechange)(IceConnectionState state, void *userdata);
-  void (*ontrack)(uint8_t *packet, size_t bytes, void *userdata);
+  onicecandidate_cb_t onicecandidate;
+  oniceconnectionstatechange_cb_t oniceconnectionstatechange;
+  ontrack_cb_t ontrack;
 
   void *onicecandidate_userdata;
   void *oniceconnectionstatechange_userdata;
   void *ontrack_userdata;
 
-  void (*on_transport_ready)(void *userdata);
+  on_transport_ready_cb_t on_transport_ready;
   void *on_transport_ready_userdata;
 };
 
@@ -79,7 +79,7 @@ static void* peer_connection_component_state_chanaged_cb(NiceAgent *agent,
   //LOG_INFO("SIGNAL: state changed %d %d %s[%d]",
   // stream_id, component_id, STATE_NAME[state], state);
   if(pc->oniceconnectionstatechange != NULL) {
-    pc->oniceconnectionstatechange(state, pc->oniceconnectionstatechange_userdata);
+    pc->oniceconnectionstatechange(pc, state, pc->oniceconnectionstatechange_userdata);
   }
 
 }
@@ -163,7 +163,7 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
   if(pc->onicecandidate != NULL) {
 
     char *sdp_content = session_description_get_content(pc->sdp);
-    pc->onicecandidate(sdp_content, pc->onicecandidate_userdata);
+    pc->onicecandidate(pc, sdp_content, pc->onicecandidate_userdata);
 
   }
 
@@ -194,7 +194,7 @@ static void peer_connection_ice_recv_cb(NiceAgent *agent, guint stream_id, guint
   if(rtcp_packet_validate(buf, len)) {
 
      if(pc->on_transport_ready != NULL) {
-      pc->on_transport_ready((void*)pc->on_transport_ready_userdata);
+      pc->on_transport_ready(pc, (void*)pc->on_transport_ready_userdata);
      }
   }
   else if(dtls_transport_validate(buf)) {
@@ -207,7 +207,7 @@ static void peer_connection_ice_recv_cb(NiceAgent *agent, guint stream_id, guint
     dtls_transport_decrypt_rtp_packet(pc->dtls_transport, buf, &len);
 
     if(pc->ontrack != NULL) {
-      pc->ontrack(buf, len, pc->ontrack_userdata);
+      pc->ontrack(pc, buf, len, pc->ontrack_userdata);
     }
 
   }
@@ -259,40 +259,52 @@ gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
   return TRUE;
 }
 
-PeerConnection* peer_connection_create(void) {
+int peer_connection_init(PeerConnection *pc)
+{
+    pc->mdns_enabled = FALSE;
+  
+    pc->audio_ssrc = 0;
+    pc->video_ssrc = 0;
+  
+    pc->onicecandidate = NULL;
+    pc->onicecandidate_userdata = NULL;
+  
+    pc->oniceconnectionstatechange = NULL;
+    pc->oniceconnectionstatechange_userdata = NULL;
+  
+    pc->on_transport_ready = NULL;
+    pc->on_transport_ready_userdata = NULL;
+    pc->transceiver.video = SENDONLY;
+    pc->transceiver.audio = SENDONLY;
+  
+    if(peer_connection_nice_agent_setup(pc) == FALSE)
+    {
+        peer_connection_destroy(pc);
+        return 0;
+    }
+  
+    pc->dtls_transport = dtls_transport_create(nice_agent_bio_new(pc->nice_agent, pc->stream_id, pc->component_id));
+    pc->sdp = session_description_create();
+    
+    return 1;
+}
 
-  PeerConnection *pc = NULL;
-  pc = (PeerConnection*)malloc(sizeof(PeerConnection));
-  memset(pc, 0, sizeof(*pc));
-  if(pc == NULL)
-    return pc;
+PeerConnection *peer_connection_create(void)
+{
 
-  pc->mdns_enabled = FALSE;
-
-  pc->audio_ssrc = 0;
-  pc->video_ssrc = 0;
-
-  pc->onicecandidate = NULL;
-  pc->onicecandidate_userdata = NULL;
-
-  pc->oniceconnectionstatechange = NULL;
-  pc->oniceconnectionstatechange_userdata = NULL;
-
-  pc->on_transport_ready = NULL;
-  pc->on_transport_ready_userdata = NULL;
-  pc->transceiver.video = SENDONLY;
-  pc->transceiver.audio = SENDONLY;
-
-  if(peer_connection_nice_agent_setup(pc) == FALSE) {
-    peer_connection_destroy(pc);
+    PeerConnection *pc = NULL;
+    pc = (PeerConnection*)malloc(sizeof(PeerConnection));
+    if(pc == NULL)
+    {
+        return pc;
+    }
+    memset(pc, 0, sizeof(*pc));
+    if(peer_connection_init(pc))
+    {
+        return pc;
+    }
+    
     return NULL;
-  }
-
-  pc->dtls_transport = dtls_transport_create(nice_agent_bio_new(pc->nice_agent, pc->stream_id, pc->component_id));
-
-  pc->sdp = session_description_create();
-
-  return pc;
 }
 
 void peer_connection_enable_mdns(PeerConnection *pc, gboolean b_enabled) {
@@ -420,14 +432,14 @@ int peer_connection_send_rtp_packet(PeerConnection *pc, uint8_t *packet, int byt
 
 }
 
-void peer_connection_set_on_transport_ready(PeerConnection *pc, void (*on_transport_ready), void *data) {
+void peer_connection_set_on_transport_ready(PeerConnection *pc, on_transport_ready_cb_t on_transport_ready, void *data) {
 
   pc->on_transport_ready = on_transport_ready;
   pc->on_transport_ready_userdata = data;
 
 }
 
-void peer_connection_onicecandidate(PeerConnection *pc, void (*onicecandidate), void  *userdata) {
+void peer_connection_onicecandidate(PeerConnection *pc, onicecandidate_cb_t onicecandidate, void  *userdata) {
 
   pc->onicecandidate = onicecandidate;
   pc->onicecandidate_userdata = userdata;
@@ -435,14 +447,14 @@ void peer_connection_onicecandidate(PeerConnection *pc, void (*onicecandidate), 
 }
 
 void peer_connection_oniceconnectionstatechange(PeerConnection *pc,
-  void (*oniceconnectionstatechange), void *userdata) {
+  oniceconnectionstatechange_cb_t oniceconnectionstatechange, void *userdata) {
 
   pc->oniceconnectionstatechange = oniceconnectionstatechange;
   pc->oniceconnectionstatechange_userdata = userdata;
 
 }
 
-void peer_connection_ontrack(PeerConnection *pc, void (*ontrack), void *userdata) {
+void peer_connection_ontrack(PeerConnection *pc, ontrack_cb_t ontrack, void *userdata) {
 
   pc->ontrack = ontrack;
   pc->ontrack_userdata = userdata;

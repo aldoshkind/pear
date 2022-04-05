@@ -27,13 +27,21 @@ typedef enum IceConnectionState {
 
 } IceConnectionState;
 
+struct PeerConnection;
+
 typedef struct PeerConnection PeerConnection;
+
+typedef void (*onicecandidate_cb_t)(PeerConnection *pc, char *sdp, void *userdata);
+typedef void (*oniceconnectionstatechange_cb_t)(PeerConnection *pc, IceConnectionState state, void *userdata);
+typedef void (*ontrack_cb_t)(PeerConnection *pc, uint8_t *packet, size_t bytes, void *userdata);
+typedef void (*on_transport_ready_cb_t)(PeerConnection *pc, void *userdata);
 
 /**
  * @brief Create a struct PeerConnection and initialize it.
  * @return Pointer of PeerConnection.
  */
 PeerConnection* peer_connection_create();
+int peer_connection_init(PeerConnection *pc);
 
 /**
  * @brief Destory a struct PeerConnection.
@@ -60,7 +68,7 @@ void peer_connection_add_stream(PeerConnection *pc, MediaStream *media_stream);
  * @param A callback function to handle onicecandidate event.
  * @param A userdata which is pass to callback function. 
  */
-void peer_connection_onicecandidate(PeerConnection *pc, void (*onicecandidate), void  *userdata);
+void peer_connection_onicecandidate(PeerConnection *pc, onicecandidate_cb_t onicecandidate, void  *userdata);
 
 /**
  * @brief Set the callback function to handle oniceconnectionstatechange event.
@@ -69,7 +77,7 @@ void peer_connection_onicecandidate(PeerConnection *pc, void (*onicecandidate), 
  * @param A userdata which is pass to callback function. 
  */
 void peer_connection_oniceconnectionstatechange(PeerConnection *pc,
- void (*oniceconnectionstatechange), void *userdata);
+ oniceconnectionstatechange_cb_t oniceconnectionstatechange, void *userdata);
 
 /**
  * @brief Set the callback function to handle ontrack event.
@@ -77,7 +85,7 @@ void peer_connection_oniceconnectionstatechange(PeerConnection *pc,
  * @param A callback function to handle ontrack event.
  * @param A userdata which is pass to callback function. 
  */
-void peer_connection_ontrack(PeerConnection *pc, void (*ontrack), void *userdata);
+void peer_connection_ontrack(PeerConnection *pc, ontrack_cb_t ontrack, void *userdata);
 
 /**
  * @brief sets the specified session description as the remote peer's current offer or answer.
@@ -123,7 +131,7 @@ void peer_connection_enable_mdns(PeerConnection *pc, gboolean b_enabled);
 // To confirm:
 int peer_connection_send_rtp_packet(PeerConnection *pc, uint8_t *packet, int bytes);
 
-void peer_connection_set_on_transport_ready(PeerConnection *pc, void (*on_transport_ready), void *data);
+void peer_connection_set_on_transport_ready(PeerConnection *pc, on_transport_ready_cb_t on_transport_ready, void *data);
 
 #ifdef __cplusplus
 }

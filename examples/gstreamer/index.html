@@ -8,6 +8,7 @@
     <video style='display:block; margin: 0 auto;border-style: solid;' id='remoteVideos'></video>
     <script>
       var iceServers = [{urls: 'stun:stun.l.google.com:19302'}]
+//      var iceServers = []
     
       var log = msg => { const currentDate = new Date(); logstr = currentDate.toISOString() + " " + msg; console.log(logstr); tx = document.getElementById('text'); tx.value += logstr + '\n';};
       var pc = new RTCPeerConnection({
@@ -32,7 +33,7 @@
           }
         };
         log('open')
-        xhttp.open('POST', '/call/demo');
+        xhttp.open('POST', '/call/###camid###');
         xhttp.setRequestHeader('Content-Type', 'plain/text');
         log('send')
         xhttp.send(btoa(JSON.stringify({'type': 'offer', 'sdp': sdp})));
@@ -55,7 +56,7 @@
 	    }
 	    else
 	    {
-	    	log('event candidate ' + event.candidate)
+	    	log('event candidate ' + event.candidate.candidate)
 	    }
       };
       pc.addTransceiver('video', {'direction': 'sendrecv'})

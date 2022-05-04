@@ -250,6 +250,7 @@ gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
   }
 
   nice_agent_set_stream_name(pc->nice_agent, pc->stream_id, "video");
+  nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, "127.0.0.1", 3478, "test", "test", NICE_RELAY_TYPE_TURN_UDP);
 
   nice_agent_attach_recv(pc->nice_agent, pc->stream_id, pc->component_id,
    g_main_loop_get_context(pc->gloop), peer_connection_ice_recv_cb, pc);

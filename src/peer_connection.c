@@ -233,7 +233,7 @@ static void peer_connection_ice_recv_cb(NiceAgent *agent, guint stream_id, guint
   }
 }
 
-char *get_env_str(const char *name, const char *default_value)
+static char *get_env_str(const char *name, const char *default_value)
 {
     char *v = getenv(name);
     if(v)
@@ -243,7 +243,7 @@ char *get_env_str(const char *name, const char *default_value)
     return strdup(default_value);
 }
 
-int get_env_int(const char *name, int default_value)
+static int get_env_int(const char *name, int default_value)
 {
     char *v = getenv(name);
     if(v)

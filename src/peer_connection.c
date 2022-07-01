@@ -107,7 +107,7 @@ static void* peer_connection_component_state_chanaged_cb(NiceAgent *agent,
 
 static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint stream_id,
  gpointer data) {
-    printf("%s\n", __PRETTY_FUNCTION__);
+    LOG_INFO("%s", __PRETTY_FUNCTION__);
 
   PeerConnection *pc = (PeerConnection*)data;
 
@@ -487,7 +487,7 @@ int peer_connection_send_rtp_packet(PeerConnection *pc, uint8_t *packet, int byt
   dtls_transport_encrypt_rtp_packet(pc->dtls_transport, packet, &bytes);
   int sent = nice_agent_send(pc->nice_agent, pc->stream_id, pc->component_id, bytes, (gchar*)packet);
   if(sent < bytes) {
-    LOG_ERROR("only sent %d bytes? (was %d)\n", sent, bytes);
+    //LOG_ERROR("only sent %d bytes? (was %d)\n", sent, bytes);
   }
   return sent;
 

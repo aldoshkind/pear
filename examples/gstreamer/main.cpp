@@ -197,9 +197,15 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
     {
         for(auto &peer : enc->connections)
         {
-            static uint8_t rtp_packet_per_peer[MTU] = {0};
-            memcpy(rtp_packet_per_peer, rtp_packet, MTU);
-            peer_connection_send_rtp_packet(peer, rtp_packet_per_peer, bytes);
+            // количество добавочных байт из документации не понятно, похоже что должно быть 10, берём с запасом 100
+            const int additional_buf_space = 100;
+            const int buf_size = MTU + additional_buf_space;
+            uint8_t rtp_packet_per_peer[buf_size] = {0};
+            size_t sz = std::min<size_t>(bytes, MTU);
+            memcpy(rtp_packet_per_peer, rtp_packet, sz);
+            uint32_t &fw = *(uint32_t*)rtp_packet_per_peer;
+            fw = (fw & (~(127 << 8))) | (peer_connection_get_rtpmap(peer, CODEC_H264) << 8);
+            peer_connection_send_rtp_packet(peer, rtp_packet_per_peer, sz);
         }
     }
 
@@ -214,10 +220,6 @@ int main(int argc, char **argv)
 {
     gst_init(&argc, &argv);
 
-    std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
-    std::stringstream buf;
-    buf << t.rdbuf();
-    std::string index_html = buf.str();
     
     httplib::Server s;
     
@@ -227,13 +229,21 @@ int main(int argc, char **argv)
     create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
     
     
-    s.Get("/", [&index_html](const httplib::Request &/*req*/, httplib::Response &res)
+    s.Get("/", [](const httplib::Request &/*req*/, httplib::Response &res)
     {
+        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::stringstream buf;
+        buf << t.rdbuf();
+        std::string index_html = buf.str();
         res.set_content(index_html, "text/html");
     });
     
-    s.Get("/(\\w+-\\d+)/?", [&index_html](const httplib::Request &req, httplib::Response &res)
+    s.Get("/(\\w+-\\d+)/?", [](const httplib::Request &req, httplib::Response &res)
     {
+        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::stringstream buf;
+        buf << t.rdbuf();
+        std::string index_html = buf.str();
         std::string html = std::regex_replace(index_html, std::regex("###camid###"), (std::string)req.matches[1]);
         res.set_content(html, "text/html");
     });

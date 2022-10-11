@@ -19,8 +19,8 @@ static const gchar *CANDIDATE_TYPE_NAME[] = {"host", "srflx", "prflx", "relay"};
 //static const gchar *STUN_ADDR = "stun.l.google.com";
 //static const guint STUN_PORT = 19302;
 
-static const gchar *STUN_ADDR = "";
-static const guint STUN_PORT = 10001;
+static const gchar *STUN_ADDR = ""; //"127.0.0.1";
+static const guint STUN_PORT = 10001; //3478;
 
 struct PeerConnection {
 
@@ -171,7 +171,14 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
       continue;
     }
 
-    session_description_append(sdp, "a=candidate:%s 1 udp %u %s %d typ %s",
+    char *template = "a=candidate:%s 1 udp %u %s %d typ %s";
+    
+    if(nice_candidate->type == NICE_CANDIDATE_TYPE_RELAYED)
+    {
+        template = "a=candidate:%s 1 udp %u %s %d typ %s raddr 0.0.0.0 rport 777";
+    }
+    
+    session_description_append(sdp, template,
      nice_candidate->foundation,
      nice_candidate->priority,
      nice_candidate_addr,

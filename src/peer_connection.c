@@ -113,7 +113,6 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
 
   gchar *local_ufrag = NULL;
   gchar *local_password = NULL;
-  gchar ipaddr[INET6_ADDRSTRLEN];
   GSList *nice_candidates = NULL;
 
   int i = 0;
@@ -127,6 +126,11 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
     LOG_ERROR("get local credentials failed");
     return NULL;
   }
+  
+  GRand *rand = g_rand_new();
+  pc->video_ssrc = g_rand_int(rand);
+  pc->audio_ssrc = g_rand_int(rand);
+  g_rand_free(rand);
 
   session_description_append(sdp, "v=0");
   session_description_append(sdp, "o=- 1495799811084970 1495799811084970 IN IP4 0.0.0.0");
@@ -149,7 +153,10 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
 
     session_description_add_codec(sdp, pc->media_stream->video_codec, pc->transceiver.video, local_ufrag, local_password, dtls_transport_get_fingerprint(pc->dtls_transport), 0);
 
-
+    // not storing uuid string in the pc as it is not used anywhere else
+    gchar *uuid = g_uuid_string_random();
+    session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
+    g_free(uuid);
   }
 
   if(local_ufrag)
@@ -432,8 +439,9 @@ void peer_connection_set_remote_description(PeerConnection *pc, char *remote_sdp
 
   if(!remote_sdp) return;
 
-  pc->audio_ssrc = session_description_find_ssrc("audio", remote_sdp);
-  pc->video_ssrc = session_description_find_ssrc("video", remote_sdp);
+  // using pc->*_ssrc field to store outgoing ssrcs
+  /*pc->audio_ssrc = session_description_find_ssrc("audio", remote_sdp);
+  pc->video_ssrc = session_description_find_ssrc("video", remote_sdp);*/
 
   // Remove mDNS
   SessionDescription *sdp = NULL;

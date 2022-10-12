@@ -204,7 +204,10 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
             size_t sz = std::min<size_t>(bytes, MTU);
             memcpy(rtp_packet_per_peer, rtp_packet, sz);
             uint32_t &fw = *(uint32_t*)rtp_packet_per_peer;
-            fw = (fw & (~(127 << 8))) | (peer_connection_get_rtpmap(peer, CODEC_H264) << 8);
+            auto pt = peer_connection_get_rtpmap(peer, CODEC_H264);
+            fw = (fw & (~(127 << 8))) | (pt << 8);
+            auto &pack_ssrc = ((uint32_t*)rtp_packet_per_peer)[2];
+            pack_ssrc = htonl(peer_connection_get_ssrc(peer, "video"));
             peer_connection_send_rtp_packet(peer, rtp_packet_per_peer, sz);
         }
     }

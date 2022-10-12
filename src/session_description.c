@@ -105,7 +105,8 @@ void session_description_add_codec(SessionDescription *sdp, MediaCodec codec,
     case CODEC_H264:
       session_description_append(sdp, "m=video 9 UDP/TLS/RTP/SAVPF 102");
       session_description_append(sdp, "a=rtpmap:102 H264/90000");
-      session_description_append(sdp, "a=fmtp:102 packetization-mode=1");
+      session_description_append(sdp, "a=fmtp:102 profile-level-id=42e01f;level-asymmetry-allowed=1");
+      //session_description_append(sdp, "a=fmtp:102 packetization-mode=1");
       session_description_append(sdp, "a=rtcp-fb:102 nack");
       session_description_append(sdp, "a=rtcp-fb:102 nack pli");
       session_description_append(sdp, "a=fmtp:102 x-google-max-bitrate=6000;x-google-min-bitrate=2000;x-google-start-bitrate=4000");
@@ -148,7 +149,6 @@ void session_description_add_codec(SessionDescription *sdp, MediaCodec codec,
   session_description_append(sdp, "a=ice-options:trickle");
   session_description_append(sdp, "a=fingerprint:sha-256 %s", fingerprint);
   session_description_append(sdp, "a=setup:passive");
-
 }
 
 uint32_t session_description_find_ssrc(const char *type, const char *sdp) {

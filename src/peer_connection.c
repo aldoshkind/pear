@@ -22,6 +22,9 @@ static const gchar *CANDIDATE_TYPE_NAME[] = {"host", "srflx", "prflx", "relay"};
 static const gchar *STUN_ADDR = ""; //"127.0.0.1";
 static const guint STUN_PORT = 10001; //3478;
 
+//static const gchar *STUN_ADDR = "127.0.0.1";
+//static const guint STUN_PORT = 3478;
+
 struct PeerConnection {
 
   NiceAgent *nice_agent;
@@ -97,8 +100,8 @@ static void* peer_connection_component_state_chanaged_cb(NiceAgent *agent,
  guint stream_id, guint component_id, guint state, gpointer data) {
 
   PeerConnection *pc = (PeerConnection*)data;
-  //LOG_INFO("SIGNAL: state changed %d %d %s[%d]",
-  // stream_id, component_id, STATE_NAME[state], state);
+  LOG_INFO("SIGNAL: state changed %d %d %s[%d]",
+   stream_id, component_id, STATE_NAME[state], state);
   if(pc->oniceconnectionstatechange != NULL) {
     pc->oniceconnectionstatechange(pc, state, pc->oniceconnectionstatechange_userdata);
   }
@@ -128,12 +131,14 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
   }
   
   GRand *rand = g_rand_new();
-  pc->video_ssrc = g_rand_int(rand);
-  pc->audio_ssrc = g_rand_int(rand);
-  g_rand_free(rand);
+  /*pc->video_ssrc = g_rand_int(rand);
+  pc->audio_ssrc = g_rand_int(rand);*/
 
   session_description_append(sdp, "v=0");
-  session_description_append(sdp, "o=- 1495799811084970 1495799811084970 IN IP4 0.0.0.0");
+  // 1495799811084970
+  uint32_t ss_id = g_rand_int(rand);
+  session_description_append(sdp, "o=- %u %u IN IP4 0.0.0.0", ss_id, ss_id + 1);
+  g_rand_free(rand);
   session_description_append(sdp, "s=-");
   session_description_append(sdp, "t=0 0");
   session_description_append(sdp, "a=msid-semantic: WMS");
@@ -155,7 +160,7 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
 
     // not storing uuid string in the pc as it is not used anywhere else
     gchar *uuid = g_uuid_string_random();
-    session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
+    //session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
     g_free(uuid);
   }
 
@@ -440,8 +445,8 @@ void peer_connection_set_remote_description(PeerConnection *pc, char *remote_sdp
   if(!remote_sdp) return;
 
   // using pc->*_ssrc field to store outgoing ssrcs
-  /*pc->audio_ssrc = session_description_find_ssrc("audio", remote_sdp);
-  pc->video_ssrc = session_description_find_ssrc("video", remote_sdp);*/
+  pc->audio_ssrc = session_description_find_ssrc("audio", remote_sdp);
+  pc->video_ssrc = session_description_find_ssrc("video", remote_sdp);
 
   // Remove mDNS
   SessionDescription *sdp = NULL;

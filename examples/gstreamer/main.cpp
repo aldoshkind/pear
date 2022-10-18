@@ -28,7 +28,7 @@ std::string answer;
 
 //const char PIPE_LINE[] = "v4l2src ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
 //const char PIPE_LINE[] = "videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
-const char PIPE_LINE[] = " ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
+const char PIPE_LINE[] = " ! videoconvert ! queue ! "
                         "x264enc bitrate=100 speed-preset=ultrafast tune=zerolatency key-int-max=10 ! video/x-h264,profile=constrained-baseline ! "
                         "queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 ! appsink name=pear-sink";
 
@@ -84,7 +84,7 @@ static void on_iceconnectionstatechange(PeerConnection *pc, IceConnectionState s
     }
 }
 
-static void on_icecandidate(PeerConnection *pc, char *sdp, void */*data*/)
+static void on_icecandidate(PeerConnection */*pc*/, char *sdp, void */*data*/)
 {
     printf("%s\n", __PRETTY_FUNCTION__);
 
@@ -118,6 +118,7 @@ void create_encoder(const std::string &camid, const std::string &pipeline)
     encoders[camid] = std::make_shared<encoder>();
     auto &e = encoders[camid];
     e->gst_element = gst_parse_launch(pipeline.c_str(), NULL);
+    printf("pipeline is %s\n", pipeline.c_str());
     e->sink = gst_bin_get_by_name(GST_BIN(e->gst_element), "pear-sink");
     g_signal_connect(e->sink, "new-sample", G_CALLBACK(new_sample), NULL);
     g_object_set(e->sink, "emit-signals", TRUE, NULL);
@@ -143,7 +144,8 @@ void process_offer(const std::string &camid, const std::string &offer)
 
     PeerConnection *g_peer_connection = nullptr;
     g_peer_connection = peer_connection_create();
-    peer_connection_enable_mdns(g_peer_connection, true);
+    //peer_connection_enable_mdns(g_peer_connection, true);
+    peer_connection_enable_mdns(g_peer_connection, false);
     
     MediaStream *media_stream = media_stream_new();
     media_stream_add_track(media_stream, CODEC_H264);
@@ -158,6 +160,10 @@ void process_offer(const std::string &camid, const std::string &offer)
     
     g_cond_wait(&g_cond, &g_mutex);
     peer_connection_set_remote_description(g_peer_connection, (char *)offer.c_str());
+    //char aaa[200] = {0};
+    //snprintf(aaa, 200, "a=ssrc:%u cname:{%s}", peer_connection_get_ssrc(g_peer_connection, "video"), "456789123");
+    //session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
+    //answer += aaa;
     g_mutex_unlock(&g_mutex);
     encoders[camid]->connections.insert(g_peer_connection);
     
@@ -222,14 +228,16 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
 int main(int argc, char **argv)
 {
     gst_init(&argc, &argv);
-
+    
+    nice_debug_enable(true);
     
     httplib::Server s;
     
     
-    create_encoder("i-1", (std::string("videotestsrc") + PIPE_LINE).c_str());
-    create_encoder("i-2", (std::string("videotestsrc pattern=ball") + PIPE_LINE).c_str());
-    create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
+    create_encoder("i-1", (std::string("videotestsrc ! videorate ! video/x-raw,width=640,height=480,framerate=30/1") + PIPE_LINE).c_str());
+    create_encoder("i-2", (std::string("videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1") + PIPE_LINE).c_str());
+    //create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
+    //create_encoder("i-4", (std::string("filesrc location=/home/dmitry/video/vizorlabs/nordgold_2.avi ! decodebin ") + PIPE_LINE).c_str());
     
     
     s.Get("/", [](const httplib::Request &/*req*/, httplib::Response &res)

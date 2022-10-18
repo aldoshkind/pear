@@ -160,10 +160,6 @@ void process_offer(const std::string &camid, const std::string &offer)
     
     g_cond_wait(&g_cond, &g_mutex);
     peer_connection_set_remote_description(g_peer_connection, (char *)offer.c_str());
-    //char aaa[200] = {0};
-    //snprintf(aaa, 200, "a=ssrc:%u cname:{%s}", peer_connection_get_ssrc(g_peer_connection, "video"), "456789123");
-    //session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
-    //answer += aaa;
     g_mutex_unlock(&g_mutex);
     encoders[camid]->connections.insert(g_peer_connection);
     
@@ -242,7 +238,7 @@ int main(int argc, char **argv)
     
     s.Get("/", [](const httplib::Request &/*req*/, httplib::Response &res)
     {
-        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::ifstream t("index.html");
         std::stringstream buf;
         buf << t.rdbuf();
         std::string index_html = buf.str();
@@ -251,7 +247,7 @@ int main(int argc, char **argv)
     
     s.Get("/(\\w+-\\d+)/?", [](const httplib::Request &req, httplib::Response &res)
     {
-        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::ifstream t("index.html");
         std::stringstream buf;
         buf << t.rdbuf();
         std::string index_html = buf.str();

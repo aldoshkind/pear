@@ -47,7 +47,7 @@ int cb_dtls_verify(int preverify_ok, X509_STORE_CTX *ctx) {
 static X509 *certificate = NULL;
 static EVP_PKEY *private_key = NULL;
 
-char *cert_buf = 
+static char *cert_buf = 
         "-----BEGIN CERTIFICATE-----\n"
         "MIICtTCCAZ2gAwIBAgIBADANBgkqhkiG9w0BAQUFADAeMQ0wCwYDVQQKDARUZXN0\n"
         "MQ0wCwYDVQQDDARUZXN0MB4XDTIxMTAxNzIwMzAwNFoXDTIzMTAxNzIwMzAwNFow\n"
@@ -68,7 +68,7 @@ char *cert_buf =
         ;
 
 
-char *pkey =
+static char *pkey =
         "-----BEGIN PRIVATE KEY-----\n"
         "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC0Q7GDe0bEmGNB\n"
         "95GCyGeTRWQCT1pl0TWoekwuCEojUjPvtYCSjNC94UV/9O+HWnGO7taYeSNIGOvi\n"
@@ -98,18 +98,7 @@ char *pkey =
         "UVXuCKQN8ShXzZO8XJXfzcI=\n"
         "-----END PRIVATE KEY-----\n";
 
-void *serialize_cert(X509 *cert)
-{
-    size_t size = strlen(cert_buf) * 10;
-    void *mem = calloc(size, 1);
-    FILE *fp = fmemopen(mem, size, "w");
-    PEM_write_X509(fp, cert);
-    fclose(fp);
-    
-    return mem;
-}
-
-X509 *deserialize_cert(void *buf)
+static X509 *deserialize_cert(void *buf)
 {
     size_t buf_size = strlen(buf);
     FILE *fp = fmemopen(buf, buf_size, "r");
@@ -119,18 +108,7 @@ X509 *deserialize_cert(void *buf)
     return cert;
 }
 
-void *serialize_pkey(EVP_PKEY *key)
-{
-    size_t size = strlen(pkey) * 10;
-    void *mem = calloc(size, 1);
-    FILE *fp = fmemopen(mem, size, "w");
-    int rv = PEM_write_PrivateKey(fp, key, NULL, NULL, 0, NULL, NULL);
-    fclose(fp);
-    
-    return mem;
-}
-
-EVP_PKEY *deserialize_pkey(void *buf)
+static EVP_PKEY *deserialize_pkey(void *buf)
 {
     size_t buf_size = strlen(buf);
     FILE *fp = fmemopen(buf, buf_size, "r");
@@ -142,105 +120,13 @@ EVP_PKEY *deserialize_pkey(void *buf)
 
 void generate_self_certificate(DtlsTransport *dtls_transport)
 {
-    certificate = deserialize_cert(cert_buf);
-    private_key = deserialize_pkey(pkey);
-    
-    /*void *ser_cer = serialize_cert(certificate);
-    printf("%s\n", cert_buf);
-    printf("%s\n", ser_cer);
-    X509 *deser_cert = deserialize_cert(ser_cer);
-    int cmp_cert = X509_cmp(certificate, deser_cert);
-    
-    void *ser_pkey = serialize_pkey(private_key);
-    EVP_PKEY *deser_pkey = deserialize_pkey(ser_pkey);
-    void *reser_pkey = serialize_pkey(deser_pkey);
-    EVP_PKEY *redeser_pkey = deserialize_pkey(reser_pkey);
-   
-    int cmp_pkey = EVP_PKEY_cmp(private_key, deser_pkey);
-    int cmp_pkey2 = EVP_PKEY_cmp(redeser_pkey, deser_pkey);
-    
-    printf("%s\n", pkey);
-    printf("%s\n", ser_pkey);
-    printf("%s\n", reser_pkey);
-*/
-    
-    
-    if(certificate != NULL)
+    if(certificate == NULL)
     {
-        dtls_transport->certificate = certificate;
-        dtls_transport->private_key = private_key;
-        return;
+        certificate = deserialize_cert(cert_buf);
+        private_key = deserialize_pkey(pkey);
     }
-
-  const int num_bits = 2048;
-  BIGNUM *bne = NULL;
-  RSA *rsa_key = NULL;
-  X509_NAME *cert_name = NULL;
-  //EC_KEY *ecc_key = NULL;
-
-  dtls_transport->private_key = EVP_PKEY_new();
-  if(dtls_transport->private_key == NULL) {
-    LOG_ERROR();
-  }
-  bne = BN_new();
-  if(!bne) {
-    LOG_ERROR();
-  }
-
-  if(!BN_set_word(bne, RSA_F4)) {  /* RSA_F4 == 65537 */
-    LOG_ERROR();
-  }
-
-  rsa_key = RSA_new();
-  if(!rsa_key) {
-    LOG_ERROR();
-  }
-
-  if(!RSA_generate_key_ex(rsa_key, num_bits, bne, NULL)) {
-    LOG_ERROR();
-  }
-
-  if(!EVP_PKEY_assign_RSA(dtls_transport->private_key, rsa_key)) {
-    LOG_ERROR();
-  }
-
-#warning
-  rsa_key = NULL;
-
-  dtls_transport->certificate = X509_new();
-  if(!dtls_transport->certificate) {
-    LOG_ERROR();
-  }
-
-  X509_set_version(dtls_transport->certificate, 2);
-
-
-  X509_gmtime_adj(X509_get_notBefore(dtls_transport->certificate), -1 * 60*60*24*365);  /* -1 year */
-  X509_gmtime_adj(X509_get_notAfter(dtls_transport->certificate), 60*60*24*365);  /* 1 year */
-
-  if(!X509_set_pubkey(dtls_transport->certificate, dtls_transport->private_key)) {
-    LOG_ERROR();
-  }
-
-  cert_name = X509_get_subject_name(dtls_transport->certificate);
-  if(!cert_name) {
-    LOG_ERROR();
-  }
-  X509_NAME_add_entry_by_txt(cert_name, "O", MBSTRING_ASC, (const unsigned char*)"Test", -1, -1, 0);
-  X509_NAME_add_entry_by_txt(cert_name, "CN", MBSTRING_ASC, (const unsigned char*)"Test", -1, -1, 0);
-
-  if(!X509_set_issuer_name(dtls_transport->certificate, cert_name)) {
-    LOG_ERROR();
-  }
-
-  if(!X509_sign(dtls_transport->certificate, dtls_transport->private_key, EVP_sha1())) {
-    LOG_ERROR();
-  }
-  certificate = dtls_transport->certificate;
-  private_key = dtls_transport->private_key;
-
-  BN_free(bne);
-
+    dtls_transport->certificate = certificate;
+    dtls_transport->private_key = private_key;
 }
 
 int dtls_transport_init(DtlsTransport *dtls_transport, BIO *agent_write_bio) {

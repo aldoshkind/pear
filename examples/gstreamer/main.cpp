@@ -235,19 +235,26 @@ int main(int argc, char **argv)
     //create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
     //create_encoder("i-4", (std::string("filesrc location=/home/dmitry/video/vizorlabs/nordgold_2.avi ! decodebin ") + PIPE_LINE).c_str());
     
-    
-    s.Get("/", [](const httplib::Request &/*req*/, httplib::Response &res)
+    std::string index_path = "index.html";
+    char *index_path_cstr = getenv("INDEX_PATH");
+    if(index_path_cstr)
     {
-        std::ifstream t("index.html");
+        index_path = index_path_cstr;
+    }
+    
+    
+    s.Get("/", [=](const httplib::Request &/*req*/, httplib::Response &res)
+    {
+        std::ifstream t(index_path);
         std::stringstream buf;
         buf << t.rdbuf();
         std::string index_html = buf.str();
         res.set_content(index_html, "text/html");
     });
     
-    s.Get("/(\\w+-\\d+)/?", [](const httplib::Request &req, httplib::Response &res)
+    s.Get("/(\\w+-\\d+)/?", [=](const httplib::Request &req, httplib::Response &res)
     {
-        std::ifstream t("index.html");
+        std::ifstream t(index_path);
         std::stringstream buf;
         buf << t.rdbuf();
         std::string index_html = buf.str();

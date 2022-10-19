@@ -219,8 +219,8 @@ void dtls_transport_destroy(DtlsTransport *dtls_transport) {
 
   SSL_CTX_free(dtls_transport->ssl_ctx);
   SSL_free(dtls_transport->ssl);
-  X509_free(dtls_transport->certificate);
-  EVP_PKEY_free(dtls_transport->private_key);
+  //X509_free(dtls_transport->certificate);
+  //EVP_PKEY_free(dtls_transport->private_key);
 
   if(dtls_transport->srtp_in)
     srtp_dealloc(dtls_transport->srtp_in);

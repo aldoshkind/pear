@@ -6,6 +6,7 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+#include <optional>
 
 #include <gst/gst.h>
 
@@ -19,6 +20,8 @@ extern "C"
 #include <base64.h>
 #include <json.hpp>
 
+#include "SessionDescription.h"
+
 #define MTU 1400
 
 static GCond g_cond;
@@ -28,9 +31,29 @@ std::string answer;
 
 //const char PIPE_LINE[] = "v4l2src ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
 //const char PIPE_LINE[] = "videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
-const char PIPE_LINE[] = " ! videoconvert ! queue ! "
-                        "x264enc bitrate=100 speed-preset=ultrafast tune=zerolatency key-int-max=10 ! video/x-h264,profile=constrained-baseline ! "
-                        "queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 ! appsink name=pear-sink";
+
+
+/*
+const char PIPE_LINE[] = " ! videoconvert ! clockoverlay ! queue "
+                         " ! x264enc bitrate=1000 speed-preset=ultrafast tune=zerolatency key-int-max=10 "
+                         //" ! video/x-h264,profile=constrained-baseline "
+                         " ! video/x-h264,packetization-mode=1,profile-level-id=42e01f,level-asymmetry-allowed=1"
+//                         ",stream-format=byte-stream"
+//                         ",byte-stream=true"
+//                         ",alignment=nal "
+                         //" ! video/x-h264,packetization-mode=1,profile-level-id=42c01e,level-asymmetry-allowed=1 "
+                         //" ! queue ! rtph264parse ! queue "
+                         " ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400"
+                         //" ! application/x-rtp,packetization-mode=0,profile-level-id=42e01f,level-asymmetry-allowed=1 "
+                         " ! appsink name=pear-sink";
+*/
+
+
+const char PIPE_LINE[] = " ! videoconvert ! clockoverlay ! queue "
+                         " ! x264enc bitrate=1000 speed-preset=ultrafast tune=zerolatency key-int-max=10 "
+                         " ! video/x-h264,packetization-mode=1,profile-level-id=42e01f,level-asymmetry-allowed=1"
+                         " ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400"
+                         " ! appsink name=pear-sink";
 
         //"queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 ! appsink name=pear-sink";
 
@@ -107,6 +130,9 @@ static void on_transport_ready(PeerConnection *pc, void */*data*/)
         if(enc)
         {
             gst_element_set_state(enc->gst_element, GST_STATE_PLAYING);
+            GstState a, b;
+            gst_element_get_state(enc->gst_element, &a, &b, GST_CLOCK_TIME_NONE);
+            GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(enc->gst_element), GST_DEBUG_GRAPH_SHOW_ALL, "graph.dot");
         }
     }
 }
@@ -122,6 +148,105 @@ void create_encoder(const std::string &camid, const std::string &pipeline)
     e->sink = gst_bin_get_by_name(GST_BIN(e->gst_element), "pear-sink");
     g_signal_connect(e->sink, "new-sample", G_CALLBACK(new_sample), NULL);
     g_object_set(e->sink, "emit-signals", TRUE, NULL);
+}
+
+RtpMap extract_rtpmap(const char *sdp_string)
+{
+    RtpMap rtp_map;
+    
+    std::shared_ptr<sdp::SessionDescription> sdp;
+	try
+    {
+		sdp = sdp::SessionDescription::parse(sdp_string);
+	}
+    catch (const std::exception& e)
+    { 
+		std::cout << e.what();
+        return session_description_parse_rtpmap(sdp_string);
+	}
+    
+    std::optional<uint64_t> best_profile_id;
+    std::optional<uint64_t> best_pack_mode;
+    std::optional<uint64_t> best_pt;
+    uint64_t target_profile_id = 0x42e01f;
+    
+    for(auto &m : sdp->getMedias())
+    {
+        for (auto &f : m->getFormats())
+        {
+            int pt = std::atoi(f.c_str());
+            auto rtpmap = m->getRTPMap(pt);
+            std::string name = rtpmap->getName();
+            
+            if(name == "PCMA")
+            {
+                rtp_map.pt_pcma = pt;
+                continue;
+            }
+            else if(name == "opus")
+            {
+                rtp_map.pt_opus = pt;
+                continue;
+            }
+            
+            if(name != "H264")
+            {
+                continue;
+            }
+            
+            auto params = m->getFormatParameters(pt);
+            std::optional<uint64_t> profile_id;
+            std::optional<uint8_t> pack_mode;
+            if(params.count("profile-level-id"))
+            {
+                profile_id = std::strtoul(params["profile-level-id"].c_str(), nullptr, 16);
+            }
+            if(params.count("packetization-mode"))
+            {
+                pack_mode = std::strtoul(params["packetization-mode"].c_str(), nullptr, 10);
+            }
+            
+            if(best_pt.has_value() == false)
+            {
+                best_pt = pt;
+                best_pack_mode = pack_mode;
+                best_profile_id = profile_id;
+            }
+            else
+            {
+                if(pack_mode.has_value() and pack_mode.value() != 1)
+                {
+                    continue;
+                }
+                int64_t best_pi_dist = 0xffffffff;
+                int64_t current_pi_dist = 0;
+                if(best_profile_id.has_value())
+                {
+                    best_pi_dist = abs((int64_t)target_profile_id - (int64_t)best_profile_id.value());
+                }
+                if(profile_id.has_value())
+                {
+                    if(profile_id.value() < target_profile_id)
+                    {
+                        continue;
+                    }
+                    current_pi_dist = abs((int64_t)target_profile_id - (int64_t)profile_id.value());
+                }
+                if(current_pi_dist < best_pi_dist)
+                {
+                    best_pt = pt;
+                    best_pack_mode = pack_mode;
+                    best_profile_id = profile_id;
+                }
+            }
+        }
+    }
+    if(best_pt.has_value())
+    {
+        rtp_map.pt_h264 = best_pt.value();
+    }
+    
+    return rtp_map;
 }
 
 void process_offer(const std::string &camid, const std::string &offer)
@@ -144,6 +269,7 @@ void process_offer(const std::string &camid, const std::string &offer)
 
     PeerConnection *g_peer_connection = nullptr;
     g_peer_connection = peer_connection_create();
+    peer_connection_set_rtpmap_handler(g_peer_connection, extract_rtpmap);
     //peer_connection_enable_mdns(g_peer_connection, true);
     peer_connection_enable_mdns(g_peer_connection, false);
     
@@ -230,7 +356,7 @@ int main(int argc, char **argv)
     httplib::Server s;
     
     
-    create_encoder("i-1", (std::string("videotestsrc ! videorate ! video/x-raw,width=640,height=480,framerate=30/1") + PIPE_LINE).c_str());
+    create_encoder("i-1", (std::string("videotestsrc ! videorate ! videoconvert ! video/x-raw,format=I420,width=640,height=480,framerate=30/1") + PIPE_LINE).c_str());
     create_encoder("i-2", (std::string("videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1") + PIPE_LINE).c_str());
     //create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
     //create_encoder("i-4", (std::string("filesrc location=/home/dmitry/video/vizorlabs/nordgold_2.avi ! decodebin ") + PIPE_LINE).c_str());
@@ -290,7 +416,7 @@ int main(int argc, char **argv)
     
 
     
-    s.listen("0.0.0.0", 8000);
+    s.listen("0.0.0.0", 7000);
     
     //gst_element_set_state(gst_element, GST_STATE_NULL);
     //gst_object_unref(gst_element);

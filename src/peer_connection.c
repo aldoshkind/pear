@@ -22,7 +22,7 @@ static const gchar *CANDIDATE_TYPE_NAME[] = {"host", "srflx", "prflx", "relay"};
 static const gchar *STUN_ADDR = ""; //"127.0.0.1";
 static const guint STUN_PORT = 10001; //3478;
 
-//static const gchar *STUN_ADDR = "127.0.0.1";
+//static const gchar *STUN_ADDR = "192.168.0.84";
 //static const guint STUN_PORT = 3478;
 
 struct PeerConnection {
@@ -51,6 +51,8 @@ struct PeerConnection {
   void *onicecandidate_userdata;
   void *oniceconnectionstatechange_userdata;
   void *ontrack_userdata;
+  
+  get_rtpmap_handler_t get_rtpmap_handler; 
 
   on_transport_ready_cb_t on_transport_ready;
   void *on_transport_ready_userdata;
@@ -157,11 +159,6 @@ static void* peer_connection_candidate_gathering_done_cb(NiceAgent *agent, guint
     session_description_add_codec(sdp, pc->media_stream->audio_codec, pc->transceiver.audio, local_ufrag, local_password, dtls_transport_get_fingerprint(pc->dtls_transport), 0);
 
     session_description_add_codec(sdp, pc->media_stream->video_codec, pc->transceiver.video, local_ufrag, local_password, dtls_transport_get_fingerprint(pc->dtls_transport), 0);
-
-    // not storing uuid string in the pc as it is not used anywhere else
-    gchar *uuid = g_uuid_string_random();
-    //session_description_append(sdp, "a=ssrc:%u cname:{%s}", pc->video_ssrc, uuid);
-    g_free(uuid);
   }
 
   if(local_ufrag)
@@ -356,6 +353,8 @@ int peer_connection_init(PeerConnection *pc)
     pc->on_transport_ready_userdata = NULL;
     pc->transceiver.video = SENDONLY;
     pc->transceiver.audio = SENDONLY;
+        
+    pc->get_rtpmap_handler = session_description_parse_rtpmap;
   
     if(peer_connection_nice_agent_setup(pc) == FALSE)
     {
@@ -371,7 +370,6 @@ int peer_connection_init(PeerConnection *pc)
 
 PeerConnection *peer_connection_create(void)
 {
-
     PeerConnection *pc = NULL;
     pc = (PeerConnection*)malloc(sizeof(PeerConnection));
     if(pc == NULL)
@@ -475,7 +473,7 @@ void peer_connection_set_remote_description(PeerConnection *pc, char *remote_sdp
     remote_sdp = session_description_get_content(sdp);
   }
 
-  pc->rtp_map = session_description_parse_rtpmap(remote_sdp);
+  pc->rtp_map = pc->get_rtpmap_handler(remote_sdp);
 
   plist = nice_agent_parse_remote_stream_sdp(pc->nice_agent,
    pc->component_id, (gchar*)remote_sdp, &ufrag, &pwd);
@@ -574,4 +572,9 @@ int peer_connection_get_rtpmap(PeerConnection *pc, MediaCodec codec) {
   }
 
    return -1;
+}
+            
+void peer_connection_set_rtpmap_handler(PeerConnection *pc, get_rtpmap_handler_t handler)
+{
+    pc->get_rtpmap_handler = handler;
 }

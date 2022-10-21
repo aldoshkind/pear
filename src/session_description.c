@@ -105,11 +105,12 @@ void session_description_add_codec(SessionDescription *sdp, MediaCodec codec,
     case CODEC_H264:
       session_description_append(sdp, "m=video 9 UDP/TLS/RTP/SAVPF 102");
       session_description_append(sdp, "a=rtpmap:102 H264/90000");
-      session_description_append(sdp, "a=fmtp:102 profile-level-id=42e01f;level-asymmetry-allowed=1");
+      session_description_append(sdp, "a=fmtp:102 profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1");
+      //session_description_append(sdp, "a=fmtp:102 profile-level-id=42c01e;level-asymmetry-allowed=1;packetization-mode=1");
       //session_description_append(sdp, "a=fmtp:102 packetization-mode=1");
       session_description_append(sdp, "a=rtcp-fb:102 nack");
       session_description_append(sdp, "a=rtcp-fb:102 nack pli");
-      session_description_append(sdp, "a=fmtp:102 x-google-max-bitrate=6000;x-google-min-bitrate=2000;x-google-start-bitrate=4000");
+      //session_description_append(sdp, "a=fmtp:102 x-google-max-bitrate=6000;x-google-min-bitrate=2000;x-google-start-bitrate=4000");
       break;
     case CODEC_OPUS:
       session_description_append(sdp, "m=audio 9 UDP/TLS/RTP/SAVP 111");
@@ -168,46 +169,51 @@ uint32_t session_description_find_ssrc(const char *type, const char *sdp) {
   return ssrc;
 }
 
-RtpMap session_description_parse_rtpmap(const char *sdp) {
-
-  //a=rtpmap:111 opus/48000/2
-  //a=rtpmap:8 PCMA/8000
-  //a=rtpmap:108 H264/90000
-  RtpMap rtp_map;
-  int pt = 0;
-  int i;
-
-  char codec[16];
-
-  char *pt_start, *codec_start, *codec_end;
-
-  gchar **splits;
-  splits = g_strsplit(sdp, "\r\n", 256);
-  for(i = 0; splits[i] != NULL; i++) {
-    if(strstr(splits[i], "rtpmap") == NULL)
-      continue;
-
-    pt_start = strstr(splits[i], ":");
-    codec_start = strstr(splits[i], " ") + 1;
-    codec_end = strstr(splits[i], "/");
-
-    if(!pt_start && !codec_start && !codec_end)
-      continue;
-
-    pt = atoi(pt_start + 1);
-    memset(codec, 0, sizeof(codec));
-    strncpy(codec, codec_start, codec_end - codec_start);
-
-    if(strcmp(codec, "H264") == 0) {
-      rtp_map.pt_h264 = pt;
+RtpMap session_description_parse_rtpmap(const char *sdp)
+{    
+    //a=rtpmap:111 opus/48000/2
+    //a=rtpmap:8 PCMA/8000
+    //a=rtpmap:108 H264/90000
+    RtpMap rtp_map;
+    int pt = 0;
+    int i;
+    
+    char codec[16];
+    
+    char *pt_start, *codec_start, *codec_end;
+    
+    gchar **splits;
+    splits = g_strsplit(sdp, "\r\n", 256);
+    
+    for(i = 0; splits[i] != NULL; i++)
+    {
+        if(strstr(splits[i], "rtpmap") == NULL)
+        {
+            continue;
+        }
+        
+        pt_start = strstr(splits[i], ":");
+        codec_start = strstr(splits[i], " ") + 1;
+        codec_end = strstr(splits[i], "/");
+        
+        if(!pt_start && !codec_start && !codec_end)
+            continue;
+        
+        pt = atoi(pt_start + 1);
+        memset(codec, 0, sizeof(codec));
+        strncpy(codec, codec_start, codec_end - codec_start);
+        
+        if(strcmp(codec, "H264") == 0) {
+            rtp_map.pt_h264 = pt;
+            printf("use h264 pt %d\n", pt);
+        }
+        else if(strcmp(codec, "PCMA") == 0) {
+            rtp_map.pt_pcma = pt;
+        }
+        else if(strcmp(codec, "opus") == 0) {
+            rtp_map.pt_opus = pt;
+        }
     }
-    else if(strcmp(codec, "PCMA") == 0) {
-      rtp_map.pt_pcma = pt;
-    }
-    else if(strcmp(codec, "opus") == 0) {
-      rtp_map.pt_opus = pt;
-    }
-  }
-
-  return rtp_map;
+    
+    return rtp_map;
 }

@@ -227,7 +227,7 @@ void dtls_transport_destroy(DtlsTransport *dtls_transport) {
   if(dtls_transport->srtp_out)
     srtp_dealloc(dtls_transport->srtp_out);
 
-  srtp_shutdown();
+  //srtp_shutdown();
 
   free(dtls_transport);
 }

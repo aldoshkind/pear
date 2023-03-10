@@ -320,9 +320,16 @@ gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
       char *relay_user = get_env_str("PEAR_RELAY_USERNAME", "test");
       char *relay_password = get_env_str("PEAR_RELAY_PASSWORD", "test");
       int relay_port = get_env_int("PEAR_RELAY_PORT", 3478);
+      NiceRelayType relay_type = NICE_RELAY_TYPE_TURN_TCP;
+      char *relay_type_env = get_env_str("PEAR_RELAY_TYPE", "tcp");
+      if(!strcmp(relay_type_env, "udp"))
+      {
+          relay_type = NICE_RELAY_TYPE_TURN_UDP;
+      }
       
-      nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, relay_ip, relay_port, relay_user, relay_password, NICE_RELAY_TYPE_TURN_UDP);
-      
+      nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, relay_ip, relay_port, relay_user, relay_password, relay_type);
+
+      free(relay_type_env);
       free(relay_user);
       free(relay_password);
   }

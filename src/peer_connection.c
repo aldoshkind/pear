@@ -64,6 +64,27 @@ void* peer_connection_gather_thread(void *data) {
 
 }
 
+static int hostname_to_ip(const char *hostname, char *ip)
+{
+	struct hostent *he = NULL;
+	struct in_addr **addr_list = NULL;
+		
+    he = gethostbyname(hostname);
+	if(he == NULL)
+	{
+		return 0;
+	}
+
+	addr_list = (struct in_addr **) he->h_addr_list;
+	
+    if(addr_list[0] != NULL)
+    {
+        strcpy(ip, inet_ntoa(*addr_list[0]));
+		return 1;
+    }
+	
+	return 0;
+}
 
 static void peer_connection_new_selected_pair_full_cb(NiceAgent* agent, guint stream_id,
  guint component_id, NiceCandidate *lcandidate, NiceCandidate* rcandidate, gpointer data) {
@@ -209,10 +230,34 @@ static void peer_connection_ice_recv_cb(NiceAgent *agent, guint stream_id, guint
     if(pc->ontrack != NULL) {
       pc->ontrack(pc, buf, len, pc->ontrack_userdata);
     }
-
   }
+}
 
+static char *get_env_str(const char *name, const char *default_value)
+{
+    char *v = getenv(name);
+    if(v)
+    {
+        return strdup(v);
+    }
+    return strdup(default_value);
+}
 
+static int get_env_int(const char *name, int default_value)
+{
+    char *v = getenv(name);
+    if(v)
+    {
+        int rv = default_value;
+        char *endptr = NULL;
+        rv = strtol(v, &endptr, 10);
+        if(v == endptr)
+        {
+            return default_value;
+        }        
+        return rv;
+    }
+    return default_value;
 }
 
 gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
@@ -251,8 +296,21 @@ gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
 
   nice_agent_set_stream_name(pc->nice_agent, pc->stream_id, "video");
   
-  //g_object_set(pc->nice_agent, "force-relay", TRUE, NULL);
-  nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, "127.0.0.1", 3478, "test", "test", NICE_RELAY_TYPE_TURN_UDP);
+  char *relay_host = get_env_str("PEAR_RELAY_HOST", "127.0.0.1");
+  char relay_ip[100] = {0};
+  int ip_ok = hostname_to_ip(relay_host, relay_ip);
+  if(ip_ok)
+  {
+      char *relay_user = get_env_str("PEAR_RELAY_USERNAME", "test");
+      char *relay_password = get_env_str("PEAR_RELAY_PASSWORD", "test");
+      int relay_port = get_env_int("PEAR_RELAY_PORT", 3478);
+      
+      nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, relay_ip, relay_port, relay_user, relay_password, NICE_RELAY_TYPE_TURN_UDP);
+      
+      free(relay_user);
+      free(relay_password);
+  }
+  free(relay_host);
 
   nice_agent_attach_recv(pc->nice_agent, pc->stream_id, pc->component_id,
    g_main_loop_get_context(pc->gloop), peer_connection_ice_recv_cb, pc);

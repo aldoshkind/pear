@@ -28,13 +28,22 @@ std::string answer;
 
 //const char PIPE_LINE[] = "v4l2src ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
 //const char PIPE_LINE[] = "videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
-const char PIPE_LINE[] = " ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
-                        "x264enc bitrate=100 speed-preset=ultrafast tune=zerolatency key-int-max=10 ! video/x-h264,profile=constrained-baseline ! "
-                        "queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 ! appsink name=pear-sink";
+/*const char PIPE_LINE[] = " ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! "
+                        "x264enc bitrate=2000 speed-preset=ultrafast tune=zerolatency key-int-max=10 ! video/x-h264,profile=constrained-baseline ! "
+                        "queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 name=rtph264pay ! appsink name=pear-sink";*/
+
+
+//const char PIPE_LINE[] = " ! fakesink";
+
+
+
 
         //"queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 ! appsink name=pear-sink";
 
 //const char PIPE_LINE[] = "videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! queue ! vp9enc ! queue ! rtpvp9pay mtu=1400 ! appsink name=pear-sink";
+
+const char PIPE_LINE[] = "videotestsrc pattern=ball ! videorate ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! x264enc bitrate=2000 speed-preset=ultrafast tune=zerolatency key-int-max=10 ! video/x-h264,profile=constrained-baseline ! "
+                        "queue ! h264parse ! queue ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400 name=rtph264pay ! appsink name=pear-sink";
 
 int sending = 0;
 
@@ -106,6 +115,9 @@ static void on_transport_ready(PeerConnection *pc, void */*data*/)
         auto enc = get_enc_by_pc(pc);
         if(enc)
         {
+            int pt = peer_connection_get_rtpmap(pc, CODEC_H264);
+            printf("set payload type %d\n", pt);
+            
             gst_element_set_state(enc->gst_element, GST_STATE_PLAYING);
         }
     }
@@ -117,7 +129,19 @@ void create_encoder(const std::string &camid, const std::string &pipeline)
 {
     encoders[camid] = std::make_shared<encoder>();
     auto &e = encoders[camid];
+    fprintf(stderr, "before launch\n");
     e->gst_element = gst_parse_launch(pipeline.c_str(), NULL);
+    fprintf(stderr, "after launch\n");
+    
+    gst_element_set_state(e->gst_element, GST_STATE_NULL);
+    GstState a;
+    GstState b;
+    gst_element_get_state(e->gst_element, &a, &b, GST_CLOCK_TIME_NONE);
+    gst_object_unref(e->gst_element);
+    
+    fprintf(stderr, "after set state\n");
+    
+   
     e->sink = gst_bin_get_by_name(GST_BIN(e->gst_element), "pear-sink");
     g_signal_connect(e->sink, "new-sample", G_CALLBACK(new_sample), NULL);
     g_object_set(e->sink, "emit-signals", TRUE, NULL);
@@ -199,6 +223,13 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
         {
             static uint8_t rtp_packet_per_peer[MTU] = {0};
             memcpy(rtp_packet_per_peer, rtp_packet, MTU);
+            int pt = ((*((uint64_t *)rtp_packet_per_peer)) >> 8) & 127;
+            //printf("pt is %d while requested is %d\n", pt, peer_connection_get_rtpmap(peer, CODEC_H264));
+            uint32_t &fw = *(uint32_t*)rtp_packet_per_peer;
+            fw = (fw & (~(127 << 8))) | (peer_connection_get_rtpmap(peer, CODEC_H264) << 8);
+            
+            pt = ((*((uint64_t *)rtp_packet_per_peer)) >> 8) & 127;
+            //printf("pt is %d while requested is %d\n", pt, peer_connection_get_rtpmap(peer, CODEC_H264));
             peer_connection_send_rtp_packet(peer, rtp_packet_per_peer, bytes);
         }
     }
@@ -212,6 +243,7 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
 
 int main(int argc, char **argv)
 {
+    nice_debug_enable(true);
     gst_init(&argc, &argv);
 
     std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
@@ -223,17 +255,23 @@ int main(int argc, char **argv)
     
     
     create_encoder("i-1", (std::string("videotestsrc") + PIPE_LINE).c_str());
-    create_encoder("i-2", (std::string("videotestsrc pattern=ball") + PIPE_LINE).c_str());
-    create_encoder("i-3", (std::string("v4l2src") + PIPE_LINE).c_str());
     
     
     s.Get("/", [&index_html](const httplib::Request &/*req*/, httplib::Response &res)
     {
+        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::stringstream buf;
+        buf << t.rdbuf();
+        std::string index_html = buf.str();
         res.set_content(index_html, "text/html");
     });
     
     s.Get("/(\\w+-\\d+)/?", [&index_html](const httplib::Request &req, httplib::Response &res)
     {
+        std::ifstream t("/home/dmitry/downloads/vcs/pear/examples/gstreamer/index.html");
+        std::stringstream buf;
+        buf << t.rdbuf();
+        std::string index_html = buf.str();
         std::string html = std::regex_replace(index_html, std::regex("###camid###"), (std::string)req.matches[1]);
         res.set_content(html, "text/html");
     });

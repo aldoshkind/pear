@@ -250,6 +250,9 @@ gboolean peer_connection_nice_agent_setup(PeerConnection *pc) {
   }
 
   nice_agent_set_stream_name(pc->nice_agent, pc->stream_id, "video");
+  
+  //g_object_set(pc->nice_agent, "force-relay", TRUE, NULL);
+  nice_agent_set_relay_info(pc->nice_agent, pc->stream_id, pc->component_id, "127.0.0.1", 3478, "test", "test", NICE_RELAY_TYPE_TURN_UDP);
 
   nice_agent_attach_recv(pc->nice_agent, pc->stream_id, pc->component_id,
    g_main_loop_get_context(pc->gloop), peer_connection_ice_recv_cb, pc);
@@ -423,7 +426,16 @@ void peer_connection_set_remote_description(PeerConnection *pc, char *remote_sdp
 
 int peer_connection_send_rtp_packet(PeerConnection *pc, uint8_t *packet, int bytes) {
 
+    if(bytes == 1400)
+    {
+        //printf("case\n");
+    }
+    //printf("size %d\n", bytes);
   dtls_transport_encrypt_rtp_packet(pc->dtls_transport, packet, &bytes);
+  if(bytes > 1400)
+  {
+      //printf("fuck\n");
+  }
   int sent = nice_agent_send(pc->nice_agent, pc->stream_id, pc->component_id, bytes, (gchar*)packet);
   if(sent < bytes) {
     LOG_ERROR("only sent %d bytes? (was %d)\n", sent, bytes);

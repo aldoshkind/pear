@@ -11,10 +11,11 @@ const char index_html[] = " \
     <title>Surveillance</title> \n \
   </head> \n \
   <body> \n \
-    <video width='100%' id='remoteCamera'></video> \n \
+    <video width='100%' style='display:block; margin: 0 auto;border-style: solid;' id='remoteCamera'></video> \n \
     <script> \n \
       var pc = new RTCPeerConnection({ \n \
-        iceServers: [{urls: 'stun:stun.l.google.com:19302'}] \n \
+        //iceServers: [{urls: 'stun:stun.l.google.com:19302'}] \n \
+        iceServers: [] \n \
       }); \n \
       var log = msg => { console.log(msg); }; \n \
       function sendOfferToCall(sdp) { \n \
@@ -23,7 +24,7 @@ const char index_html[] = " \
           if (this.readyState == 4 && this.status == 200) { \n \
             let res = JSON.parse(atob(this.responseText)); \n \
             console.log(res); log(atob(this.responseText));\n \
-            if(res.type == 'answer') { \n \
+            if(res.type == 'answer') { log(res.sdp); \n \
               pc.setRemoteDescription(new RTCSessionDescription(res)); \n \
             } \n \
           } \n \

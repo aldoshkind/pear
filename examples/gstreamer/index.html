@@ -7,12 +7,17 @@
     <textarea style="width:100%; height: 400px;" id="text"></textarea>
     <video style='display:block; margin: 0 auto;border-style: solid;' id='remoteVideos'></video>
     <script>
-      var iceServers = [{urls: 'stun:stun.l.google.com:19302'}]
+//      var iceServers = [{urls: 'stun:127.0.0.1:3478?transport=tcp'}]
+//      var iceServers = [{urls: 'stun:stun.l.google.com:19302'}]
+//      var iceServers = [{urls: 'turn:185.137.234.98:3478?transport=tcp', username: "test", credential: "test"}]
+//      var iceServers = [{urls: 'turn:185.137.234.98?transport=tcp', username: "test", credential: "test"}]
+        var iceServers = [{urls: 'turn:127.0.0.1?transport=tcp', username: "test", credential: "test"}]
 //      var iceServers = []
     
       var log = msg => { const currentDate = new Date(); logstr = currentDate.toISOString() + " " + msg; console.log(logstr); tx = document.getElementById('text'); tx.value += logstr + '\n';};
       var pc = new RTCPeerConnection({
-        iceServers
+        iceServers,
+        //iceTransportPolicy : "relay"
       });
       log('start')
       log(pc)
@@ -36,27 +41,32 @@
         xhttp.open('POST', '/call/###camid###');
         xhttp.setRequestHeader('Content-Type', 'plain/text');
         log('send')
+        console.log(JSON.stringify({'type': 'offer', 'sdp': sdp}))
         xhttp.send(btoa(JSON.stringify({'type': 'offer', 'sdp': sdp})));
         log('send done')
       }
       pc.ontrack = function (event) {
-        log('ontrack'); log(event);
+        log('ontrack');
         var el = document.getElementById('remoteVideos');
-        el.srcObject = event.streams[0];
+        el.srcObject = new MediaStream([event.track]);// = event.streams[0];
+        console.log(event)
         el.autoplay = true;
         el.controls = true;
         el.muted = true;
+        el.play()
+        log('ontrack done');
       };
-      pc.oniceconnectionstatechange = e => log(pc.iceConnectionState);
+      pc.oniceconnectionstatechange = e => log('oniceconnectionstatechange ' + pc.iceConnectionState);
       pc.onicecandidate = event => {
-        log('event ' + event)
         if(event.candidate === null)
         {
+        	log('candidate is null. offer:')
+        	log(pc.localDescription.sdp)
 	        sendOfferToCall(pc.localDescription.sdp)
 	    }
 	    else
 	    {
-	    	log('event candidate ' + event.candidate.candidate)
+	    	log('event candidate "' + event.candidate.candidate + '"')
 	    }
       };
       pc.addTransceiver('video', {'direction': 'sendrecv'})

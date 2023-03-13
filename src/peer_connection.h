@@ -35,6 +35,7 @@ typedef void (*onicecandidate_cb_t)(PeerConnection *pc, char *sdp, void *userdat
 typedef void (*oniceconnectionstatechange_cb_t)(PeerConnection *pc, IceConnectionState state, void *userdata);
 typedef void (*ontrack_cb_t)(PeerConnection *pc, uint8_t *packet, size_t bytes, void *userdata);
 typedef void (*on_transport_ready_cb_t)(PeerConnection *pc, void *userdata);
+typedef void (*on_connected_cb_t)(PeerConnection *pc, void *userdata);
 typedef RtpMap (*get_rtpmap_handler_t)(const char *sdp);
 
 /**
@@ -93,7 +94,9 @@ void peer_connection_ontrack(PeerConnection *pc, ontrack_cb_t ontrack);
  * @param PeerConnection.
  * @param SDP string.
  */
-void peer_connection_set_remote_description(PeerConnection *pc, char *sdp);
+void peer_connection_set_remote_description(PeerConnection *pc, const char *sdp);
+void peer_connection_set_remote_description_a(PeerConnection *pc, const char *sdp);
+void peer_connection_set_remote_description_b(PeerConnection *pc, const char *sdp);
 
 /**
  * @brief PeerConnection creates an answer.
@@ -137,7 +140,7 @@ void peer_connection_on_receiver_packet_loss(PeerConnection *pc,
  * @param[in] callback function void (*cb)(void *userdata)
  * @param[in] userdata for callback function
  */
-void peer_connection_on_connected(PeerConnection *pc, void (*on_connected)(void *userdata));
+void peer_connection_on_connected(PeerConnection *pc, on_connected_cb_t on_connected);
 
 /**
  * @brief register callback function to handle event of datachannel

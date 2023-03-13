@@ -92,5 +92,6 @@ RtpMap session_description_get_rtpmap(SessionDescription *sdp);
 void session_description_set_mdns_enabled(SessionDescription *sdp, int enabled);
 
 MediaDescription* session_description_get_media_descriptions(SessionDescription *sdp, int *num);
+RtpMap session_description_parse_rtpmap_default(const char *sdp);
 
 #endif // SESSION_DESCRIPTION_H_

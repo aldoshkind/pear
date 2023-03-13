@@ -111,13 +111,15 @@ static void on_icecandidate(PeerConnection */*pc*/, char *sdp, void */*data*/)
 {
     printf("%s\n", __PRETTY_FUNCTION__);
 
+    g_mutex_lock(&g_mutex);
     answer = sdp;
+    g_mutex_unlock(&g_mutex);
     g_cond_signal(&g_cond);
 }
 
 static void on_transport_ready(PeerConnection *pc, void */*data*/)
 {
-    //printf("%s\n", __PRETTY_FUNCTION__);
+    printf("%s\n", __PRETTY_FUNCTION__);
     
     auto enc = get_enc_by_pc(pc);
     GstState state;
@@ -162,7 +164,7 @@ RtpMap extract_rtpmap(const char *sdp_string)
     catch (const std::exception& e)
     { 
 		std::cout << e.what();
-        return session_description_parse_rtpmap(sdp_string);
+        return session_description_parse_rtpmap_default(sdp_string);
 	}
     
     std::optional<uint64_t> best_profile_id;
@@ -268,24 +270,22 @@ void process_offer(const std::string &camid, const std::string &offer)
     g_mutex_lock(&g_mutex);
 
     PeerConnection *g_peer_connection = nullptr;
-    g_peer_connection = peer_connection_create();
+    g_peer_connection = peer_connection_create(nullptr);
     peer_connection_set_rtpmap_handler(g_peer_connection, extract_rtpmap);
     //peer_connection_enable_mdns(g_peer_connection, true);
     peer_connection_enable_mdns(g_peer_connection, false);
     
-    MediaStream *media_stream = media_stream_new();
-    media_stream_add_track(media_stream, CODEC_H264);
+    peer_connection_onicecandidate(g_peer_connection, on_icecandidate);
+    peer_connection_oniceconnectionstatechange(g_peer_connection, on_iceconnectionstatechange);
+    peer_connection_on_connected(g_peer_connection, on_transport_ready);
     
-    peer_connection_add_stream(g_peer_connection, media_stream);
-    
-    peer_connection_onicecandidate(g_peer_connection, on_icecandidate, NULL);
-    peer_connection_oniceconnectionstatechange(g_peer_connection, on_iceconnectionstatechange, NULL);
-    peer_connection_set_on_transport_ready(g_peer_connection, on_transport_ready, NULL);
-    
+    peer_connection_set_remote_description_a(g_peer_connection, (char *)offer.c_str());
+    answer = "";
     peer_connection_create_answer(g_peer_connection);
-    
+    sleep(1);
+
     g_cond_wait(&g_cond, &g_mutex);
-    peer_connection_set_remote_description(g_peer_connection, (char *)offer.c_str());
+    peer_connection_set_remote_description_b(g_peer_connection, (char *)offer.c_str());
     g_mutex_unlock(&g_mutex);
     encoders[camid]->connections.insert(g_peer_connection);
     
@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 {
     gst_init(&argc, &argv);
     
-    nice_debug_enable(true);
+    //nice_debug_enable(true);
     
     httplib::Server s;
     

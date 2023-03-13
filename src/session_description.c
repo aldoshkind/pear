@@ -196,7 +196,7 @@ uint32_t session_description_find_ssrc(const char *type, const char *sdp) {
   return ssrc;
 }
 
-RtpMap session_description_parse_rtpmap(const char *sdp)
+RtpMap session_description_parse_rtpmap_default(const char *sdp)
 {    
     //a=rtpmap:111 opus/48000/2
     //a=rtpmap:8 PCMA/8000

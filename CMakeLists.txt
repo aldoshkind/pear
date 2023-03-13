@@ -36,6 +36,8 @@ endif()
 
 add_subdirectory(src)
 
+add_subdirectory(third_party/usrsctp/)
+
 if(ENABLE_EXAMPLES)
 add_subdirectory(examples)
 endif()

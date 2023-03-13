@@ -11,15 +11,43 @@
 #include "rtp_packet.h"
 #include "media_stream.h"
 
-#define SDP_MAX_SIZE 10240
+#define MEDIA_DESCRIPTION_MAX_NUM 10
+#define SDP_MAX_SIZE 20480
+
+typedef enum MediaDescription {
+
+  MEDIA_NONE,
+  MEDIA_VIDEO,
+  MEDIA_AUDIO,
+  MEDIA_DATACHANNEL,
+
+} MediaDescription;
 
 typedef struct SessionDescription SessionDescription;
+
+struct SessionDescription {
+
+  size_t size;
+
+  int mdns_enabled:1;
+
+  int datachannel_enabled:1;
+
+  MediaDescription media_descriptions[MEDIA_DESCRIPTION_MAX_NUM];
+
+  RtpMap rtp_map;
+
+  int media_description_num;
+
+  char content[SDP_MAX_SIZE];
+
+};
 
 /**
  * @brief Create a new SessionDescription.
  * @return Pointer of struct SessionDescription.
  */
-SessionDescription* session_description_create(void);
+SessionDescription* session_description_create(char *sdp_text);
 
 /**
  * @brief Destroy a SessionDescription.
@@ -53,29 +81,16 @@ int session_description_update_mdns_of_candidate(char *candidate_src, char *cand
 char* session_description_get_content(SessionDescription *sdp);
 
 /**
- * @brief Append media codec format to session description protocol content.
- * @param SessionDescription.
- * @param MediaCodec.
- * @param The direction of media stream.
- * @param ufrag of DTLS.
- * @param password of DTLS.
- * @param fingerprint of DTLS.
- * @param mid.
- */
-void session_description_add_codec(SessionDescription *sdp, MediaCodec codec,
- TransceiverDirection direction, const char *ufrag, const char *password, const char *fingerprint, int mid);
-
-/**
  * @brief Find RTP ssrc of audio or video in SDP.
  * @param Type is audio or video.
  * @param The content of session description protocol.
  */
 uint32_t session_description_find_ssrc(const char *type, const char *sdp);
 
-/**
- * @brief Parse RTP map of SDP.
- * @param The content of session description protocol.
- */
-RtpMap session_description_parse_rtpmap(const char *sdp);
+RtpMap session_description_get_rtpmap(SessionDescription *sdp);
+
+void session_description_set_mdns_enabled(SessionDescription *sdp, int enabled);
+
+MediaDescription* session_description_get_media_descriptions(SessionDescription *sdp, int *num);
 
 #endif // SESSION_DESCRIPTION_H_

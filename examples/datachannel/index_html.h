@@ -1,5 +1,5 @@
-#ifndef MEETING_INDEX_HTML_H_
-#define MEETING_INDEX_HTML_H_
+#ifndef DATACHANNEL_INDEX_HTML_H_
+#define DATACHANNEL_INDEX_HTML_H_
  
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,12 +8,13 @@ const char index_html[] = " \
 <!DOCTYPE html> \n \
 <html> \n \
   <head> \n \
-    <title>Meeting</title> \n \
+    <title>Datachannel</title> \n \
   </head> \n \
   <body> \n \
-    <video id='remoteVideo'></video> \n \
+    <label for='msg'>Message:</label><br> \n \
+    <input type='text' id='msg' name='msg'><br><br> \n \
+    <input type='submit' value='Send' onclick='sendMessage()'> \n \
     <script> \n \
-      var mediaStream = new MediaStream(); \n \
       var pc = new RTCPeerConnection({ \n \
         iceServers: [{urls: 'stun:stun.l.google.com:19302'}] \n \
       }); \n \
@@ -33,27 +34,22 @@ const char index_html[] = " \
         xhttp.setRequestHeader('Content-Type', 'plain/text'); \n \
         xhttp.send(btoa(JSON.stringify({'type': 'offer', 'sdp': sdp}))); \n \
       } \n \
-      pc.ontrack = function (event) { \n \
-        var el = document.getElementById('remoteVideo'); \n \
-        mediaStream.addTrack(event.track); \n \
-        el.srcObject = mediaStream \n \
-        el.autoplay = true; \n \
-        el.controls = true; \n \
-        el.muted = true; \n \
-      }; \n \
+      const sendChannel = pc.createDataChannel('pear') \n \
+      pc.ondatachannel = () => { \n \
+        console.log('ondatachannel');\n \
+      } \n \
+      sendChannel.onclose = () => console.log('sendChannel has closed'); \n \
+      sendChannel.onopen = () => console.log('sendChannel has opened'); \n \
+      sendChannel.onmessage = e => log(`Message from DataChannel '${sendChannel.label}' payload '${e.data}'`); \n \
       pc.oniceconnectionstatechange = e => log(pc.iceConnectionState); \n \
       pc.onicecandidate = event => { \n \
-        if(event.candidate === null) sendOfferToCall(pc.localDescription.sdp) \n \
+//        if(event.candidate === null) //sendOfferToCall(pc.localDescription.sdp) \n \
       }; \n \
-      pc.addTransceiver('audio', {'direction': 'sendrecv'}) \n \
-      pc.addTransceiver('video', {'direction': 'sendrecv'}) \n \
-      navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }) \n \
-        .then(stream => { \n \
-          stream.getTracks().forEach(track => pc.addTrack(track, stream)); \n \
-            pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log) \n \
-          }).catch(log) \n \
+      pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log); \n \
+      setTimeout(function() { sendOfferToCall(pc.localDescription.sdp); }, 1000); \n \
+      function sendMessage() { sendChannel.send(document.getElementById('msg').value); } \n \
     </script> \n \
   </body> \n \
 </html>";
 
-#endif // MEETING_INDEX_HTML_H_
+#endif // DATACHANNEL_INDEX_HTML_H_

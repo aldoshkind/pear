@@ -111,7 +111,7 @@ static void on_icecandidate(char *sdp, void *data) {
   g_cond_signal(&g_file_send.cond);
 }
 
-static void on_transport_ready(void *data) {
+static void on_connected(void *data) {
 
   if(g_file_send.sending_data == FALSE) {
     g_file_send.sending_data = TRUE;
@@ -129,20 +129,15 @@ void on_call_event(SignalingEvent signaling_event, char *msg, void *data) {
 
     if(g_file_send.pc)
       peer_connection_destroy(g_file_send.pc);
-    g_file_send.pc = peer_connection_create();
+    g_file_send.pc = peer_connection_create(NULL);
 
-    MediaStream *media_stream = media_stream_new();
-    media_stream_add_track(media_stream, CODEC_H264);
-
-    peer_connection_add_stream(g_file_send.pc, media_stream);
-
-    peer_connection_onicecandidate(g_file_send.pc, on_icecandidate, NULL);
-    peer_connection_oniceconnectionstatechange(g_file_send.pc, &on_iceconnectionstatechange, NULL);
-    peer_connection_set_on_transport_ready(g_file_send.pc, &on_transport_ready, NULL);
+    peer_connection_onicecandidate(g_file_send.pc, on_icecandidate);
+    peer_connection_oniceconnectionstatechange(g_file_send.pc, on_iceconnectionstatechange);
+    peer_connection_on_connected(g_file_send.pc, on_connected);
     peer_connection_create_answer(g_file_send.pc);
+    peer_connection_set_remote_description(g_file_send.pc, msg);
 
     g_cond_wait(&g_file_send.cond, &g_file_send.mutex);
-    peer_connection_set_remote_description(g_file_send.pc, msg);
     g_mutex_unlock(&g_file_send.mutex);
   }
 }

@@ -8,7 +8,7 @@
 #include "peer_connection.h"
 #include "signaling.h"
 
-const char PIPE_LINE[] = "videotestsrc pattern=ball ! video/x-raw,width=1920,height=1072,framerate=30/1 ! x264enc ! rtph264pay name=rtp config-interval=-1 ! appsink name=peer-connection-sink";
+const char PIPE_LINE[] = "videotestsrc pattern=ball ! video/x-raw,width=1280,height=720,framerate=30/1 ! x264enc bitrate=6000 speed-preset=ultrafast tune=zerolatency key-int-max=15 ! video/x-h264,profile=constrained-baseline ! rtph264pay name=rtp config-interval=-1 ssrc=1 ! appsink name=peer-connection-sink";
 
 typedef struct Surveillance {
 
@@ -41,13 +41,16 @@ static void on_icecandidate(char *sdp, void *data) {
   g_cond_signal(&g_surveillance.cond);
 }
 
-static void on_transport_ready(void *data) {
+void on_receiver_packet_loss(float fration_loss, uint32_t total_loss, void *data) {
 
-    printf("%s\n", __PRETTY_FUNCTION__);
+  LOG_INFO("Get receiver report. packet loss %f, %u", fration_loss, total_loss);
+}
+
+static void on_connected(void *data) {
+
   static int pt = -1;
   // Update payload type of rtph264pay
   int gst_pt = gst_pt = peer_connection_get_rtpmap(g_surveillance.pc, CODEC_H264);
-
   if(pt != gst_pt) {
     pt = gst_pt;
     g_object_set(g_surveillance.rtp, "pt", pt, NULL);
@@ -65,20 +68,16 @@ void on_call_event(SignalingEvent signaling_event, char *msg, void *data) {
 
     peer_connection_destroy(g_surveillance.pc);
 
-    g_surveillance.pc = peer_connection_create();
+    g_surveillance.pc = peer_connection_create(NULL);
 
-    MediaStream *media_stream = media_stream_new();
-    media_stream_add_track(media_stream, CODEC_H264);
-
-    peer_connection_add_stream(g_surveillance.pc, media_stream);
-
-    peer_connection_onicecandidate(g_surveillance.pc, on_icecandidate, NULL);
-    peer_connection_oniceconnectionstatechange(g_surveillance.pc, &on_iceconnectionstatechange, NULL);
-    peer_connection_set_on_transport_ready(g_surveillance.pc, &on_transport_ready, NULL);
+    peer_connection_onicecandidate(g_surveillance.pc, on_icecandidate);
+    peer_connection_oniceconnectionstatechange(g_surveillance.pc, on_iceconnectionstatechange);
+    peer_connection_on_connected(g_surveillance.pc, on_connected);
+    peer_connection_on_receiver_packet_loss(g_surveillance.pc, on_receiver_packet_loss);
+    peer_connection_set_remote_description(g_surveillance.pc, msg);
     peer_connection_create_answer(g_surveillance.pc);
 
     g_cond_wait(&g_surveillance.cond, &g_surveillance.mutex);
-    peer_connection_set_remote_description(g_surveillance.pc, msg);
     g_mutex_unlock(&g_surveillance.mutex);
   }
 }

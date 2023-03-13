@@ -83,7 +83,7 @@ static GstFlowReturn new_sample(GstElement *sink, void *data) {
   return GST_FLOW_ERROR;
 }
 
-static void on_transport_ready(void *data) {
+static void on_connected(void *data) {
 
   static int audio_pt = -1;
   static int video_pt = -1;
@@ -146,24 +146,16 @@ void on_call_event(SignalingEvent signaling_event, char *msg, void *data) {
     if(g_home_camera.pc)
       peer_connection_destroy(g_home_camera.pc);
 
-    g_home_camera.pc = peer_connection_create();
+    g_home_camera.pc = peer_connection_create(NULL);
 
-    MediaStream *media_stream = media_stream_new();
-    media_stream_add_track(media_stream, CODEC_H264);
-    media_stream_add_track(media_stream, CODEC_PCMA);
-    peer_connection_add_stream(g_home_camera.pc, media_stream);
-
-    Transceiver transceiver = {.video = SENDRECV, .audio = SENDRECV};
-    peer_connection_add_transceiver(g_home_camera.pc, transceiver);
-
-    peer_connection_onicecandidate(g_home_camera.pc, on_icecandidate, NULL);
-    peer_connection_ontrack(g_home_camera.pc, on_track, NULL);
-    peer_connection_oniceconnectionstatechange(g_home_camera.pc, &on_iceconnectionstatechange, NULL);
-    peer_connection_set_on_transport_ready(g_home_camera.pc, &on_transport_ready, NULL);
+    peer_connection_onicecandidate(g_home_camera.pc, on_icecandidate);
+    peer_connection_ontrack(g_home_camera.pc, on_track);
+    peer_connection_oniceconnectionstatechange(g_home_camera.pc, on_iceconnectionstatechange);
+    peer_connection_on_connected(g_home_camera.pc, on_connected);
+    peer_connection_set_remote_description(g_home_camera.pc, msg);
     peer_connection_create_answer(g_home_camera.pc);
 
     g_cond_wait(&g_home_camera.cond, &g_home_camera.mutex);
-    peer_connection_set_remote_description(g_home_camera.pc, msg);
     g_mutex_unlock(&g_home_camera.mutex);
   }
 }

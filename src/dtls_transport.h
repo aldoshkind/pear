@@ -16,7 +16,6 @@
 #include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
-#include <srtp.h> 
 
 typedef struct DtlsTransport DtlsTransport;
 
@@ -42,9 +41,19 @@ void dtls_transport_encrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *p
 void dtls_transport_decrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes);
 
 
+void dtls_transport_decrypt_rtcp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes);
+
+
 void dtls_transport_encrypt_rctp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes);
 
 
 const char* dtls_transport_get_fingerprint(DtlsTransport *dtls_transport);
+
+
+int dtls_transport_get_srtp_initialized(DtlsTransport *dtls_transport);
+
+int dtls_transport_sctp_to_dtls(DtlsTransport *dtls_transport, uint8_t *data, int bytes);
+
+int dtls_transport_decrypt_data(DtlsTransport *dtls_transport, char *encrypted_data, int encrypted_len, char *decrypted_data, int decrypted_len);
 
 #endif // DTLS_TRANSPORT_H_

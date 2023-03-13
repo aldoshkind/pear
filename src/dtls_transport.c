@@ -1,5 +1,8 @@
 #include <glib.h>
+#include <stdio.h>
 
+#include "sctp.h"
+#include "srtp.h"
 #include "utils.h"
 #include "dtls_transport.h"
 
@@ -20,6 +23,8 @@ struct DtlsTransport {
   srtp_policy_t local_policy;
   srtp_t srtp_in;
   srtp_t srtp_out;
+
+  Sctp *sctp;
 
   char fingerprint[160];
 
@@ -203,8 +208,7 @@ int dtls_transport_init(DtlsTransport *dtls_transport, BIO *agent_write_bio) {
 DtlsTransport* dtls_transport_create(BIO *agent_write_bio) {
 
   DtlsTransport *dtls_transport = NULL;
-  dtls_transport = (DtlsTransport*)malloc(sizeof(DtlsTransport));
-  memset(dtls_transport, 0, sizeof(*dtls_transport));
+  dtls_transport = (DtlsTransport*)calloc(1, sizeof(DtlsTransport));
   if(dtls_transport == NULL)
     return dtls_transport;
 
@@ -235,31 +239,9 @@ void dtls_transport_destroy(DtlsTransport *dtls_transport) {
 void dtls_transport_do_handshake(DtlsTransport *dtls_transport) {
 
   SSL_set_accept_state(dtls_transport->ssl);
-  int res = SSL_do_handshake(dtls_transport->ssl);
+  SSL_do_handshake(dtls_transport->ssl);
   dtls_transport->handshake_done = TRUE;
 
-  /*int b = SSL_do_handshake(dtls_transport->ssl);
-  if(b == 1)
-  {
-      printf("handshake success\n");
-      dtls_transport->handshake_done = TRUE;
-  }
-  else
-  {
-      unsigned long err = SSL_get_error(dtls_transport->ssl, b);
-      printf("handshake rv %d err %d\n", b, (int)err);
-      if(err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_READ) {
-          char error[200];
-          ERR_error_string_n(ERR_get_error(), error, 200);
-          LOG_ERROR("%s", error);
-          return;
-      }
-      if(err == SSL_ERROR_SYSCALL)
-      {
-          printf("%3d %s\n", errno, strerror(errno));
-          return;
-      }
-  }*/
 }
 
 int dtls_transport_validate(char *buf) {
@@ -270,11 +252,53 @@ int dtls_transport_validate(char *buf) {
   return ((*buf >= 19) && (*buf <= 64));
 }
 
+int dtls_transport_get_srtp_initialized(DtlsTransport *dtls_transport) {
+
+  if(dtls_transport) {
+    return dtls_transport->srtp_init_done;
+  }
+
+  return 0;
+}
+
+int dtls_transport_sctp_to_dtls(DtlsTransport *dtls_transport, uint8_t *data, int bytes) {
+
+  uint8_t buf[2048] = {0};
+  if(SSL_write(dtls_transport->ssl, data, bytes) != bytes) {
+    //LOG_WARN("");
+  }
+
+}
+
+int dtls_transport_decrypt_data(DtlsTransport *dtls_transport, char *encrypted_data, int encrypted_len,
+ char *decrypted_data, int decrypted_len) {
+
+  if(!dtls_transport || !dtls_transport->handshake_done) {
+    LOG_WARN("dtls_transport is not initialized");
+    return -1;
+  }
+
+  int written = BIO_write(dtls_transport->read_bio, encrypted_data, encrypted_len);
+  if(written != encrypted_len) {
+    LOG_WARN("decrypt data error");
+  }
+
+  memset(decrypted_data, 0, decrypted_len);
+
+  int read = SSL_read(dtls_transport->ssl, decrypted_data, decrypted_len);
+  if(read < 0) {
+    unsigned long err = SSL_get_error(dtls_transport->ssl, read);
+    if(err == SSL_ERROR_SSL) {
+      char error[200];
+      ERR_error_string_n(ERR_get_error(), error, 200);
+      LOG_ERROR("%s", error);
+    }
+  }
+
+  return read;
+}
 
 void dtls_transport_incomming_msg(DtlsTransport *dtls_transport, char *buf, int len) {
-
-  if(dtls_transport->srtp_init_done)
-    return;
 
   int written = BIO_write(dtls_transport->read_bio, buf, len);
   if(written != len) {
@@ -284,21 +308,13 @@ void dtls_transport_incomming_msg(DtlsTransport *dtls_transport, char *buf, int 
 
   }
 
+
   if(!dtls_transport->handshake_done)
     return;
 
-/*  if(!dtls_transport->handshake_done)
-  {
-      dtls_transport_do_handshake(dtls_transport);
-      if(!dtls_transport->handshake_done)
-      {
-          return;
-      }
-  }*/
-
   char data[3000];
-  memset(&data, 0, 3000);
-  int read = SSL_read(dtls_transport->ssl, &data, 3000);
+  memset(data, 0, 3000);
+  int read = SSL_read(dtls_transport->ssl, data, 3000);
   if(read < 0) {
     unsigned long err = SSL_get_error(dtls_transport->ssl, read);
     if(err == SSL_ERROR_SSL) {
@@ -311,6 +327,18 @@ void dtls_transport_incomming_msg(DtlsTransport *dtls_transport, char *buf, int 
   if(!SSL_is_init_finished(dtls_transport->ssl)) {
     return;
   }
+
+/*
+  if(!dtls_transport->sctp) {
+    dtls_transport->sctp = sctp_create(dtls_transport);
+  }
+
+  if(dtls_transport->sctp)
+    sctp_incoming_data(dtls_transport->sctp, data, read);
+*/
+  if(dtls_transport->srtp_init_done)
+    return;
+
 
   X509 *rcert = SSL_get_peer_certificate(dtls_transport->ssl);
   if(!rcert) {
@@ -380,6 +408,8 @@ void dtls_transport_incomming_msg(DtlsTransport *dtls_transport, char *buf, int 
   LOG_INFO("Created outbound SRTP session");
   dtls_transport->srtp_init_done = TRUE;
 
+//  dtls_transport->sctp = sctp_create(dtls_transport);
+
 }
 
 void dtls_transport_decrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes)
@@ -390,6 +420,10 @@ void dtls_transport_decrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *p
     }
 }
 
+void dtls_transport_decrypt_rtcp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes) {
+
+  srtp_unprotect_rtcp(dtls_transport->srtp_in, packet, bytes);
+}
 
 void dtls_transport_encrypt_rtp_packet(DtlsTransport *dtls_transport, uint8_t *packet, int *bytes)
 {

@@ -39,7 +39,7 @@ static void on_icecandidate(char *sdp, void *data) {
   g_cond_signal(&g_screencast.cond);
 }
 
-static void on_transport_ready(void *data) {
+static void on_connected(void *data) {
 
   gst_element_set_state(g_screencast.video_src_pipeline, GST_STATE_PLAYING);
 }
@@ -78,23 +78,16 @@ void on_call_event(SignalingEvent signaling_event, char *msg, void *data) {
     if(g_screencast.pc)
       peer_connection_destroy(g_screencast.pc);
 
-    g_screencast.pc = peer_connection_create();
+    g_screencast.pc = peer_connection_create(NULL);
 
-    MediaStream *media_stream = media_stream_new();
-    media_stream_add_track(media_stream, CODEC_H264);
-
-    peer_connection_add_stream(g_screencast.pc, media_stream);
-    Transceiver transceiver = {.video = RECVONLY};
-    peer_connection_add_transceiver(g_screencast.pc, transceiver);
-
-    peer_connection_ontrack(g_screencast.pc, on_track, NULL);
-    peer_connection_onicecandidate(g_screencast.pc, on_icecandidate, NULL);
-    peer_connection_oniceconnectionstatechange(g_screencast.pc, &on_iceconnectionstatechange, NULL);
-    peer_connection_set_on_transport_ready(g_screencast.pc, &on_transport_ready, NULL);
+    peer_connection_ontrack(g_screencast.pc, on_track);
+    peer_connection_onicecandidate(g_screencast.pc, on_icecandidate);
+    peer_connection_oniceconnectionstatechange(g_screencast.pc, on_iceconnectionstatechange);
+    peer_connection_on_connected(g_screencast.pc, on_connected);
+    peer_connection_set_remote_description(g_screencast.pc, msg);
     peer_connection_create_answer(g_screencast.pc);
 
     g_cond_wait(&g_screencast.cond, &g_screencast.mutex);
-    peer_connection_set_remote_description(g_screencast.pc, msg);
     g_mutex_unlock(&g_screencast.mutex);
   }
 

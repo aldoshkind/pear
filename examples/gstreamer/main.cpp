@@ -49,7 +49,7 @@ const char PIPE_LINE[] = " ! videoconvert ! clockoverlay ! queue "
 */
 
 
-const char PIPE_LINE[] = " ! videoconvert ! clockoverlay ! queue "
+const char PIPE_LINE[] = " ! videoconvert ! video/x-raw, format=I420 ! clockoverlay ! queue "
                          " ! x264enc bitrate=1000 speed-preset=ultrafast tune=zerolatency key-int-max=10 "
                          " ! video/x-h264,packetization-mode=1,profile-level-id=42e01f,level-asymmetry-allowed=1"
                          " ! rtph264pay config-interval=-1 pt=102 seqnum-offset=0 timestamp-offset=0 mtu=1400"
@@ -167,10 +167,9 @@ RtpMap extract_rtpmap(const char *sdp_string)
         return session_description_parse_rtpmap_default(sdp_string);
 	}
     
-    std::optional<uint64_t> best_profile_id;
-    std::optional<uint64_t> best_pack_mode;
-    std::optional<uint64_t> best_pt;
-    uint64_t target_profile_id = 0x42e01f;
+    uint64_t pt_pcma = 0;
+    uint64_t pt_opus = 0;
+    uint64_t pt_h264 = 0;
     
     for(auto &m : sdp->getMedias())
     {
@@ -182,71 +181,27 @@ RtpMap extract_rtpmap(const char *sdp_string)
             
             if(name == "PCMA")
             {
-                rtp_map.pt_pcma = pt;
-                continue;
+                pt_pcma = pt;
             }
             else if(name == "opus")
             {
-                rtp_map.pt_opus = pt;
-                continue;
+                pt_opus = pt;
+            }
+            else if(name == "H264")
+            {
+                pt_h264 = pt;
             }
             
-            if(name != "H264")
+            if(pt_h264 > 0 and pt_pcma > 0 and pt_opus > 0)
             {
-                continue;
-            }
-            
-            auto params = m->getFormatParameters(pt);
-            std::optional<uint64_t> profile_id;
-            std::optional<uint8_t> pack_mode;
-            if(params.count("profile-level-id"))
-            {
-                profile_id = std::strtoul(params["profile-level-id"].c_str(), nullptr, 16);
-            }
-            if(params.count("packetization-mode"))
-            {
-                pack_mode = std::strtoul(params["packetization-mode"].c_str(), nullptr, 10);
-            }
-            
-            if(best_pt.has_value() == false)
-            {
-                best_pt = pt;
-                best_pack_mode = pack_mode;
-                best_profile_id = profile_id;
-            }
-            else
-            {
-                if(pack_mode.has_value() and pack_mode.value() != 1)
-                {
-                    continue;
-                }
-                int64_t best_pi_dist = 0xffffffff;
-                int64_t current_pi_dist = 0;
-                if(best_profile_id.has_value())
-                {
-                    best_pi_dist = abs((int64_t)target_profile_id - (int64_t)best_profile_id.value());
-                }
-                if(profile_id.has_value())
-                {
-                    if(profile_id.value() < target_profile_id)
-                    {
-                        continue;
-                    }
-                    current_pi_dist = abs((int64_t)target_profile_id - (int64_t)profile_id.value());
-                }
-                if(current_pi_dist < best_pi_dist)
-                {
-                    best_pt = pt;
-                    best_pack_mode = pack_mode;
-                    best_profile_id = profile_id;
-                }
+                break;
             }
         }
     }
-    if(best_pt.has_value())
-    {
-        rtp_map.pt_h264 = best_pt.value();
-    }
+    
+    rtp_map.pt_h264 = pt_h264;
+    rtp_map.pt_pcma = pt_pcma;
+    rtp_map.pt_opus = pt_opus;
     
     return rtp_map;
 }

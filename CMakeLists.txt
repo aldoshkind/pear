@@ -38,6 +38,12 @@ add_subdirectory(src)
 
 add_subdirectory(third_party/usrsctp/)
 
+# Explicitly setting CMAKE_PROJECT_VERSION because cmake's project() is ill-designed
+# and is misused inside libsrtp, which leads to inability to build libsrtp through
+# add_subdirectory
+set(CMAKE_PROJECT_VERSION 2.4.2)
+add_subdirectory(third_party/libsrtp)
+
 if(ENABLE_EXAMPLES)
 add_subdirectory(examples)
 endif()

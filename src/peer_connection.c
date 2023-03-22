@@ -65,7 +65,7 @@ struct PeerConnection {
   get_rtpmap_handler_t get_rtpmap_handler; 
 
   on_connected_cb_t on_connected;
-  void (*on_receiver_packet_loss)(float fraction_loss, uint32_t total_loss, void *userdata);
+  on_receiver_loss on_receiver_packet_loss;
 
   void *userdata;
 
@@ -359,8 +359,9 @@ void peer_connection_incomming_rtcp(PeerConnection *pc, uint8_t *buf, size_t len
         RtcpRr rtcp_rr = rtcp_packet_parse_rr(buf);
         uint32_t fraction = ntohl(rtcp_rr.report_block[0].flcnpl) >> 24;
         uint32_t total = ntohl(rtcp_rr.report_block[0].flcnpl) & 0x00FFFFFF;
-        if(pc->on_receiver_packet_loss && fraction > 0) {
-          pc->on_receiver_packet_loss((float)fraction/256.0, total, pc->userdata);
+        uint32_t extended_highest_sequence_number_received = htonl(rtcp_rr.report_block[0].ehsnr);
+        if(pc->on_receiver_packet_loss/* && fraction > 0*/) {
+          pc->on_receiver_packet_loss(pc, (float)fraction / 256.0, total, extended_highest_sequence_number_received, pc->userdata);
         }
       }
       break;
@@ -723,10 +724,9 @@ void peer_connection_on_connected(PeerConnection *pc, on_connected_cb_t on_conne
   pc->on_connected = on_connected;
 }
 
-void peer_connection_on_receiver_packet_loss(PeerConnection *pc,
- void (*on_receiver_packet_loss)(float fraction_loss, uint32_t total_loss, void *userdata)) {
-
-  pc->on_receiver_packet_loss = on_receiver_packet_loss;
+void peer_connection_on_receiver_packet_loss(PeerConnection *pc, on_receiver_loss on_receiver_packet_loss)
+{
+    pc->on_receiver_packet_loss = on_receiver_packet_loss;
 }
 
 void peer_connection_onicecandidate(PeerConnection *pc, onicecandidate_cb_t onicecandidate) {

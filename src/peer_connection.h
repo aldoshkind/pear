@@ -36,6 +36,7 @@ typedef void (*oniceconnectionstatechange_cb_t)(PeerConnection *pc, IceConnectio
 typedef void (*ontrack_cb_t)(PeerConnection *pc, uint8_t *packet, size_t bytes, void *userdata);
 typedef void (*on_transport_ready_cb_t)(PeerConnection *pc, void *userdata);
 typedef void (*on_connected_cb_t)(PeerConnection *pc, void *userdata);
+typedef void (*on_receiver_loss)(PeerConnection *pc, float fraction, size_t total, size_t extended_highest_seq_number, void *userdata);
 typedef RtpMap (*get_rtpmap_handler_t)(const char *sdp);
 
 /**
@@ -131,8 +132,7 @@ void peer_connection_enable_mdns(PeerConnection *pc, int b_enabled);
  * @param[in] callback function void (*cb)(float fraction_loss, uint32_t total_loss, void *userdata)
  * @param[in] userdata for callback function
  */
-void peer_connection_on_receiver_packet_loss(PeerConnection *pc,
- void (*on_receiver_packet_loss)(float fraction_loss, uint32_t total_loss, void *userdata));
+void peer_connection_on_receiver_packet_loss(PeerConnection *pc, on_receiver_loss on_receiver_packet_loss);
 
 /**
  * @brief register callback function to handle event when the connection is established
